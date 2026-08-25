@@ -103,7 +103,7 @@ jobs:
                       member=${1#"$PWD/"}
                       echo "Testing $member"
                       cd "$member"
-                      flutter test --no-pub
+                      flutter test --no-pub --reporter=failures-only
                   )
                   export -f test_package
 
