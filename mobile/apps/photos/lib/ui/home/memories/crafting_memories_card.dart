@@ -5,44 +5,59 @@ import "package:hugeicons/hugeicons.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/notification_service.dart";
 import "package:photos/ui/home/memories/horts.dart";
-import "package:photos/ui/home/memories/memory_card.dart";
+import "package:photos/ui/home/memories/memory_card_constants.dart";
 
 class CraftingMemoriesCardWidget extends StatelessWidget {
   final double width;
   final double height;
-  final VoidCallback? onNotificationsPermissionGranted;
+  final Function(bool)? onShouldShowChanged;
 
   const CraftingMemoriesCardWidget({
     super.key,
     required this.width,
     required this.height,
-    this.onNotificationsPermissionGranted,
+    this.onShouldShowChanged,
   });
+
+  static Future<bool> shouldShow() async {
+    final hasPermissions = await NotificationService.instance
+        .hasGrantedPermissions();
+    if (hasPermissions) return false;
+    final hasDismissed = await localSettings
+        .getCraftingMemoriesBannerDismissed();
+    return !hasDismissed;
+  }
+
+  Future<void> _onTap(BuildContext context) async {
+    if (await NotificationService.instance.requestPermissions(context) &&
+        context.mounted) {
+      onShouldShowChanged?.call(false);
+    }
+  }
+
+  Future<void> _onDismissTap(BuildContext context) async {
+    await localSettings.setCraftingMemoriesBannerDismissed();
+    if (!context.mounted) return;
+    onShouldShowChanged?.call(false);
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.strings;
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: MemoryCardWidget.gap / 2.0,
+        horizontal: kMemoryCardStripGap / 2.0,
       ),
       child: SizedBox(
-        width: width,
         height: height,
+        width: width,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
           child: Stack(
             children: [
               Positioned.fill(
                 child: GestureDetector(
-                  onTap: () async {
-                    if (await NotificationService.instance.requestPermissions(
-                          context,
-                        ) &&
-                        context.mounted) {
-                      onNotificationsPermissionGranted?.call();
-                    }
-                  },
+                  onTap: () => _onTap(context),
                   child: Stack(
                     children: [
                       const Positioned.fill(child: Horts()),
@@ -113,11 +128,7 @@ class CraftingMemoriesCardWidget extends StatelessWidget {
                   message: l10n.close,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () async {
-                      await localSettings.setCraftingMemoriesBannerDismissed();
-                      if (!context.mounted) return;
-                      onNotificationsPermissionGranted?.call();
-                    },
+                    onTap: () => _onDismissTap(context),
                     child: Padding(
                       padding: EdgeInsets.all(width * 0.08),
                       child: SizedBox.square(

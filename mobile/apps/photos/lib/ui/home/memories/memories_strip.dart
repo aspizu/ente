@@ -1,19 +1,28 @@
 import "dart:async";
 import "dart:math";
 
+import "package:collection/collection.dart";
 import 'package:flutter/material.dart';
 import "package:flutter_animate/flutter_animate.dart";
 import "package:photos/core/event_bus.dart";
+import "package:photos/events/event.dart";
 import "package:photos/events/memories_changed_event.dart";
 import "package:photos/events/memories_setting_changed.dart";
 import "package:photos/events/memory_seen_event.dart";
 import "package:photos/models/memories/smart_memory.dart";
 import "package:photos/service_locator.dart";
-import "package:photos/services/notification_service.dart";
 import "package:photos/ui/home/memories/crafting_memories_card.dart";
 import 'package:photos/ui/home/memories/memory_card.dart';
+import "package:photos/ui/home/memories/memory_card_constants.dart";
 import "package:photos/ui/home/memories/memory_cover_util.dart";
 import "package:photos/ui/home/memories/memory_video_prefetcher.dart";
+
+class MemoryCardWrapper {
+  final String id;
+  final Widget Function() widget;
+
+  const MemoryCardWrapper({required this.id, required this.widget});
+}
 
 class MemoriesStripWidget extends StatefulWidget {
   const MemoriesStripWidget({super.key});
@@ -26,75 +35,36 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   late StreamSubscription<MemoriesSettingChanged> _memoriesSettingSubscription;
   late StreamSubscription<MemoriesChangedEvent> _memoriesChangedSubscription;
   late StreamSubscription<MemorySeenEvent> _memorySeenSubscription;
-  late double _memoryheight;
-  late double _memoryWidth;
+  late double _cardWidth;
 
   // Delay cover warming past startup; generations invalidate stale work.
   Timer? _warmTimer;
   int _warmGeneration = 0;
   String? _lastWarmSignature;
   final _videoPrefetcher = MemoryVideoPrefetcher();
-  late Future<bool> _showCraftingMemories;
+  bool _shouldShowCraftingMemories = false;
+  late Future<void> _shouldShowCraftingMemoriesLoaded;
+  late Future<List<SmartMemory>> _memories;
 
   @override
   void initState() {
     super.initState();
-    _refreshShowCraftingMemories();
+    _shouldShowCraftingMemoriesLoaded = CraftingMemoriesCardWidget.shouldShow()
+        .then((value) {
+          _shouldShowCraftingMemories = value;
+        });
+
+    _fetchMemories(null);
+
     _memoriesSettingSubscription = Bus.instance
         .on<MemoriesSettingChanged>()
-        .listen((event) {
-          if (mounted) {
-            setState(() {});
-          }
-        });
+        .listen(_fetchMemories);
     _memoriesChangedSubscription = Bus.instance
         .on<MemoriesChangedEvent>()
-        .listen((event) {
-          if (mounted) {
-            setState(() {});
-          }
-        });
-    _memorySeenSubscription = Bus.instance.on<MemorySeenEvent>().listen((
-      event,
-    ) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  void _refreshShowCraftingMemories() {
-    _showCraftingMemories = _getShowCraftingMemories();
-  }
-
-  Future<bool> _getShowCraftingMemories() async {
-    final hasPermissions = await NotificationService.instance
-        .hasGrantedPermissions();
-    if (hasPermissions) return false;
-    final hasDismissed = await localSettings
-        .getCraftingMemoriesBannerDismissed();
-    if (hasDismissed) return false;
-    return true;
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    if (screenWidth < screenHeight) {
-      _memoryWidth = min(
-        screenWidth * (MemoryCardWidget.defaultWidth / 376.0),
-        MemoryCardWidget.defaultWidth * 1.5,
-      );
-      _memoryheight = _memoryWidth * MemoryCardWidget.aspectRatio;
-    } else {
-      _memoryWidth = min(
-        screenHeight * .3,
-        MemoryCardWidget.defaultWidth * 1.5,
-      );
-      _memoryheight = _memoryWidth * MemoryCardWidget.aspectRatio;
-    }
+        .listen(_fetchMemories);
+    _memorySeenSubscription = Bus.instance.on<MemorySeenEvent>().listen(
+      _fetchMemories,
+    );
   }
 
   @override
@@ -108,35 +78,70 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    const defaultWidth = 145.011;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    if (screenWidth < screenHeight) {
+      _cardWidth = min(
+        screenWidth * (defaultWidth / 376.0),
+        defaultWidth * 1.5,
+      );
+    } else {
+      _cardWidth = min(screenHeight * .3, defaultWidth * 1.5);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!memoriesCacheService.showAnyMemories) {
       _cancelPendingWarm();
       return const SizedBox.shrink();
     }
-    return _memories();
-  }
-
-  Widget _memories() {
-    return FutureBuilder<List<SmartMemory>>(
-      initialData: memoriesCacheService.currentMemoriesSync,
-      future: memoriesCacheService.getMemories(),
+    return FutureBuilder(
+      future: _memories,
       builder: (context, snapshot) {
-        if (snapshot.hasError || !snapshot.hasData) {
-          _cancelPendingWarm();
+        final indexedMemories = (snapshot.data ?? []).indexed.sorted((a, b) {
+          final aIsSeen = a.$2.memories.every((item) => item.isSeen());
+          final bIsSeen = b.$2.memories.every((item) => item.isSeen());
+          if (aIsSeen == bIsSeen) return a.$1.compareTo(b.$1);
+          return aIsSeen ? 1 : -1;
+        });
+        if (indexedMemories.isEmpty) {
           return const SizedBox.shrink();
         }
-        if (snapshot.data!.isEmpty) {
-          _cancelPendingWarm();
-          return const SizedBox.shrink();
-        }
-        final orderedMemories = _orderForStrip(snapshot.data!);
-        _scheduleWarmCovers(orderedMemories);
+        final memories = indexedMemories.map((entry) => entry.$2).toList();
         return Column(
-          key: ValueKey(identityHashCode(snapshot.data)),
+          key: ValueKey(identityHashCode(_memories)),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 12),
-            _buildMemories(orderedMemories),
+            FutureBuilder(
+              future: _shouldShowCraftingMemoriesLoaded,
+              builder: (context, _) {
+                final cardHeight = _cardWidth / kMemoryCardAspectRatio;
+                final cards = _buildCards(memories, cardHeight);
+                return SizedBox(
+                  height: cardHeight + 2,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: kMemoryCardStripGap / 2.0,
+                    ),
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
+                    ),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: cards.length,
+                    itemBuilder: (context, i) => KeyedSubtree(
+                      key: ValueKey(cards[i].id),
+                      child: cards[i].widget(),
+                    ),
+                  ),
+                );
+              },
+            ),
+
             const SizedBox(height: 10),
           ],
         ).animate().fadeIn(
@@ -147,20 +152,58 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     );
   }
 
-  // Keep prefetch and UI on the same unseen-first ordering.
-  List<SmartMemory> _orderForStrip(List<SmartMemory> memories) {
-    final List<SmartMemory> orderedMemories = [];
-    final List<SmartMemory> seen = [];
-    for (final memory in memories) {
-      final allSeen = memory.memories.every((element) => element.isSeen());
-      if (allSeen) {
-        seen.add(memory);
-      } else {
-        orderedMemories.add(memory);
-      }
-    }
-    orderedMemories.addAll(seen);
-    return orderedMemories;
+  List<MemoryCardWrapper> _buildCards(
+    List<SmartMemory> memories,
+    double cardHeight,
+  ) {
+    return [
+      if (_shouldShowCraftingMemories)
+        MemoryCardWrapper(
+          id: "craftingMemories",
+          widget: () => CraftingMemoriesCardWidget(
+            width: _cardWidth / 2,
+            height: cardHeight,
+            onShouldShowChanged: (shouldShow) {
+              if (!mounted || shouldShow == _shouldShowCraftingMemories) {
+                return;
+              }
+              setState(() {
+                _shouldShowCraftingMemories = shouldShow;
+              });
+            },
+          ),
+        ),
+      ...memories.indexed.map(
+        (entry) => MemoryCardWrapper(
+          id: entry.$2.id,
+          widget: () => MemoryCardWidget(
+            memories: memories,
+            width: _cardWidth,
+            height: cardHeight,
+            index: entry.$1,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  void _fetchMemories(Event? _) {
+    setState(() {
+      _memories = memoriesCacheService
+          .getMemories()
+          .then((memories) {
+            if (memories.isEmpty) {
+              _cancelPendingWarm();
+            } else {
+              _scheduleWarmCovers(memories);
+            }
+            return memories;
+          })
+          .onError((_, _) {
+            _cancelPendingWarm();
+            return [];
+          });
+    });
   }
 
   void _scheduleWarmCovers(List<SmartMemory> memories) {
@@ -172,20 +215,18 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     _warmTimer?.cancel();
     _warmTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted || gen != _warmGeneration) return;
-      final memoryLists = memories
-          .map((e) => e.memories)
-          .toList(growable: false);
+      final itemLists = memories.map((e) => e.memories).toList(growable: false);
       _videoPrefetcher.prefetchFiles(
-        memoryLists
+        itemLists
             .take(kMemoryCoverWarmCap)
-            .where((memories) => memories.isNotEmpty)
-            .map((memories) => memories[getNextMemoryIndex(memories)].file),
+            .where((items) => items.isNotEmpty)
+            .map((items) => items[getNextMemoryIndex(items)].file),
         stillActive: () => mounted && gen == _warmGeneration,
         replacePending: true,
       );
       unawaited(
         warmMemoryCovers(
-          memoryLists,
+          itemLists,
           stillActive: () => mounted && gen == _warmGeneration,
         ),
       );
@@ -196,9 +237,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     return memories
         .map((e) => e.memories)
         .take(kMemoryCoverWarmCap)
-        .where((memories) => memories.isNotEmpty)
-        .map((memories) {
-          final file = memories[getNextMemoryIndex(memories)].file;
+        .where((items) => items.isNotEmpty)
+        .map((items) {
+          final file = items[getNextMemoryIndex(items)].file;
           return '${file.uploadedFileID ?? ""}|'
               '${file.generatedID ?? ""}|'
               '${file.localID ?? ""}|'
@@ -214,49 +255,5 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     _warmGeneration++;
     _lastWarmSignature = null;
     _videoPrefetcher.clearPending();
-  }
-
-  Widget _buildMemories(List<SmartMemory> memories) {
-    return FutureBuilder<bool>(
-      future: _showCraftingMemories,
-      builder: (context, snapshot) {
-        final showCraftingMemories = snapshot.data ?? false;
-        return SizedBox(
-          height: _memoryheight + MemoryCardWidget.outerStrokeWidth * 2,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(
-              horizontal: MemoryCardWidget.gap / 2.0,
-            ),
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            scrollDirection: Axis.horizontal,
-            itemCount: (showCraftingMemories ? 1 : 0) + memories.length,
-            itemBuilder: (context, itemIndex) {
-              if (showCraftingMemories && itemIndex == 0) {
-                return CraftingMemoriesCardWidget(
-                  width: _memoryheight * 0.5,
-                  height: _memoryheight,
-                  onNotificationsPermissionGranted: () {
-                    if (!mounted) return;
-                    setState(() {
-                      _refreshShowCraftingMemories();
-                    });
-                  },
-                );
-              }
-              final memoryIndex = itemIndex - (showCraftingMemories ? 1 : 0);
-              return MemoryCardWidget(
-                smartMemory: memories[memoryIndex],
-                allMemories: memories,
-                height: _memoryheight,
-                width: _memoryWidth,
-                currentMemoryIndex: memoryIndex,
-              );
-            },
-          ),
-        );
-      },
-    );
   }
 }
