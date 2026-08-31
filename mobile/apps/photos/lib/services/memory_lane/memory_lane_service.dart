@@ -1,4 +1,5 @@
 import "dart:async";
+import "dart:typed_data";
 
 import "package:collection/collection.dart";
 import "package:computer/computer.dart";
@@ -909,6 +910,52 @@ class MemoryLaneService {
     return Map.fromEntries(
       files.map((file) => MapEntry(localIdToId[file.localID]!, file)),
     );
+  }
+
+  Future<(Uint8List, Uint8List)?> getOldestAndNewestFaceCrops(
+    MemoryLanePersonTimeline timeline,
+  ) async {
+    final oldest = timeline.entries.first;
+    final newest = timeline.entries.last;
+    final filesById = await getTimelineFiles([oldest.fileId, newest.fileId]);
+    final oldestFile = filesById[oldest.fileId];
+    final newestFile = filesById[newest.fileId];
+    if (oldestFile == null || newestFile == null) return null;
+
+    final (oldestFace, newestFace) = await (
+      _mlDataDB
+          .getFacesForGivenFileID(oldest.fileId)
+          .then(
+            (faces) =>
+                faces?.firstWhereOrNull((face) => face.faceID == oldest.faceId),
+          ),
+      _mlDataDB
+          .getFacesForGivenFileID(newest.fileId)
+          .then(
+            (faces) =>
+                faces?.firstWhereOrNull((face) => face.faceID == newest.faceId),
+          ),
+    ).wait;
+    if (oldestFace == null || newestFace == null) return null;
+
+    final (oldestCropMap, newestCropMap) = await (
+      getCachedFaceCrops(
+        oldestFile,
+        [oldestFace],
+        useFullFile: true,
+        useTempCache: false,
+      ),
+      getCachedFaceCrops(
+        newestFile,
+        [newestFace],
+        useFullFile: true,
+        useTempCache: false,
+      ),
+    ).wait;
+    final oldestFaceCrop = oldestCropMap?[oldest.faceId];
+    final newestFaceCrop = newestCropMap?[newest.faceId];
+    if (oldestFaceCrop == null || newestFaceCrop == null) return null;
+    return (oldestFaceCrop, newestFaceCrop);
   }
 
   Future<void> _scheduleTimelinesForMemoriesStrip() async {

@@ -1,5 +1,6 @@
 import "dart:async";
 import "dart:math";
+import "dart:typed_data";
 
 import "package:collection/collection.dart";
 import 'package:flutter/material.dart';
@@ -9,12 +10,17 @@ import "package:photos/events/event.dart";
 import "package:photos/events/memories_changed_event.dart";
 import "package:photos/events/memories_setting_changed.dart";
 import "package:photos/events/memory_seen_event.dart";
+import "package:photos/events/ml_consent_changed_event.dart";
 import "package:photos/models/memories/smart_memory.dart";
+import "package:photos/models/memory_lane/memory_lane_models.dart";
 import "package:photos/service_locator.dart";
+import "package:photos/services/memory_lane/memory_lane_cache_service.dart";
+import "package:photos/services/memory_lane/memory_lane_service.dart";
 import "package:photos/ui/home/memories/crafting_memories_card.dart";
 import 'package:photos/ui/home/memories/memory_card.dart';
 import "package:photos/ui/home/memories/memory_card_constants.dart";
 import "package:photos/ui/home/memories/memory_cover_util.dart";
+import "package:photos/ui/home/memories/memory_lane_card.dart";
 import "package:photos/ui/home/memories/memory_video_prefetcher.dart";
 
 class MemoryCardWrapper {
@@ -35,17 +41,22 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   late StreamSubscription<MemoriesSettingChanged> _memoriesSettingSubscription;
   late StreamSubscription<MemoriesChangedEvent> _memoriesChangedSubscription;
   late StreamSubscription<MemorySeenEvent> _memorySeenSubscription;
+  late StreamSubscription<MLConsentChangedEvent> _mlConsentChangedSubscription;
   late double _cardWidth;
 
   // Delay cover warming past startup; generations invalidate stale work.
   Timer? _warmTimer;
   int _warmGeneration = 0;
-  int _fetchGeneration = 0;
+  int _fetchMemoriesGeneration = 0;
   String? _lastWarmSignature;
+  MemoryLanePersonTimeline? _memoryLane;
+  Uint8List? _oldestMemoryLaneFace;
+  Uint8List? _newestMemoryLaneFace;
   final _videoPrefetcher = MemoryVideoPrefetcher();
   final _scrollController = ScrollController();
   bool _shouldShowCraftingMemories = false;
   late Future<void> _shouldShowCraftingMemoriesLoaded;
+  late Future<void> _memoryLaneLoaded;
   late List<SmartMemory> _initialMemories;
   late Future<List<SmartMemory>> _memories;
 
@@ -69,6 +80,13 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     _memorySeenSubscription = Bus.instance.on<MemorySeenEvent>().listen(
       _fetchMemories,
     );
+    _mlConsentChangedSubscription = Bus.instance
+        .on<MLConsentChangedEvent>()
+        .listen(_onMLConsentChanged);
+    _memoryLaneLoaded = _loadScheduledMemoryLane();
+    MemoryLaneService.instance.readyPersonIds.addListener(
+      _onMemoryLaneReadyTimelinesChanged,
+    );
   }
 
   @override
@@ -76,9 +94,13 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     _memoriesSettingSubscription.cancel();
     _memoriesChangedSubscription.cancel();
     _memorySeenSubscription.cancel();
+    _mlConsentChangedSubscription.cancel();
     _warmTimer?.cancel();
     _videoPrefetcher.dispose();
     _scrollController.dispose();
+    MemoryLaneService.instance.readyPersonIds.removeListener(
+      _onMemoryLaneReadyTimelinesChanged,
+    );
     super.dispose();
   }
 
@@ -120,24 +142,29 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
               future: _shouldShowCraftingMemoriesLoaded,
               builder: (context, _) {
                 final cardHeight = _cardWidth / kMemoryCardAspectRatio;
-                final cards = _buildCards(memories, cardHeight);
-                return SizedBox(
-                  height: cardHeight + 2,
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: kMemoryCardStripGap / 2.0,
-                    ),
-                    physics: const AlwaysScrollableScrollPhysics(
-                      parent: BouncingScrollPhysics(),
-                    ),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: cards.length,
-                    itemBuilder: (context, i) => KeyedSubtree(
-                      key: ValueKey(cards[i].id),
-                      child: cards[i].widget(),
-                    ),
-                  ),
+                return FutureBuilder(
+                  future: _memoryLaneLoaded,
+                  builder: (context, _) {
+                    final cards = _buildCards(memories, cardHeight);
+                    return SizedBox(
+                      height: cardHeight + 2,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: kMemoryCardStripGap / 2.0,
+                        ),
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: cards.length,
+                        itemBuilder: (context, i) => KeyedSubtree(
+                          key: ValueKey(cards[i].id),
+                          child: cards[i].widget(),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -175,6 +202,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     List<SmartMemory> memories,
     double cardHeight,
   ) {
+    final memoryLane = _memoryLane;
+    final oldestMemoryLaneFace = _oldestMemoryLaneFace;
+    final newestMemoryLaneFace = _newestMemoryLaneFace;
     return [
       if (_shouldShowCraftingMemories)
         MemoryCardWrapper(
@@ -192,6 +222,17 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
             },
           ),
         ),
+      if (memoryLane != null &&
+          oldestMemoryLaneFace != null &&
+          newestMemoryLaneFace != null)
+        MemoryCardWrapper(
+          id: "memoryLane_${memoryLane.personId}",
+          widget: () => MemoryLaneCardWidget(
+            memoryLane,
+            oldestMemoryLaneFace,
+            newestMemoryLaneFace,
+          ),
+        ),
       ...memories.indexed.map(
         (entry) => MemoryCardWrapper(
           id: entry.$2.id,
@@ -207,7 +248,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   }
 
   void _fetchMemories(Event? event) {
-    final fetchGeneration = ++_fetchGeneration;
+    final fetchGeneration = ++_fetchMemoriesGeneration;
     setState(() {
       if (event is MemoriesSettingChanged &&
           memoriesCacheService.showAnyMemories) {
@@ -217,7 +258,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
           .getMemories()
           .then(_sortMemories)
           .then((memories) {
-            if (!mounted || fetchGeneration != _fetchGeneration) {
+            if (!mounted || fetchGeneration != _fetchMemoriesGeneration) {
               return memories;
             }
             if (_scrollController.hasClients) {
@@ -232,7 +273,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
             return memories;
           })
           .onError((_, _) {
-            if (mounted && fetchGeneration == _fetchGeneration) {
+            if (mounted && fetchGeneration == _fetchMemoriesGeneration) {
               _cancelPendingWarm();
             }
             return [];
@@ -289,5 +330,54 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     _warmGeneration++;
     _lastWarmSignature = null;
     _videoPrefetcher.clearPending();
+  }
+
+  Future<void> _loadScheduledMemoryLane() async {
+    final timeline = await MemoryLaneCacheService.instance
+        .getScheduledMemoriesStripTimeline();
+    if (timeline == null) {
+      return;
+    }
+    final faceCrops = await MemoryLaneService.instance
+        .getOldestAndNewestFaceCrops(timeline);
+    if (faceCrops == null ||
+        !hasGrantedMLConsent ||
+        !MemoryLaneService.instance.readyPersonIds.value.contains(
+          timeline.personId,
+        )) {
+      return;
+    }
+    _memoryLane = timeline;
+    _oldestMemoryLaneFace = faceCrops.$1;
+    _newestMemoryLaneFace = faceCrops.$2;
+  }
+
+  void _onMLConsentChanged(MLConsentChangedEvent event) {
+    if (event.enabled || !mounted || _memoryLane == null) {
+      return;
+    }
+    setState(() {
+      _memoryLane = null;
+      _oldestMemoryLaneFace = null;
+      _newestMemoryLaneFace = null;
+    });
+  }
+
+  void _onMemoryLaneReadyTimelinesChanged() {
+    final memoryLane = _memoryLane;
+    if (memoryLane == null ||
+        MemoryLaneService.instance.readyPersonIds.value.contains(
+          memoryLane.personId,
+        )) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _memoryLane = null;
+      _oldestMemoryLaneFace = null;
+      _newestMemoryLaneFace = null;
+    });
   }
 }
