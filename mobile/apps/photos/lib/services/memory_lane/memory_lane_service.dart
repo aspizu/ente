@@ -82,13 +82,6 @@ class MemoryLaneService {
       Bus.instance.on<MLConsentChangedEvent>().listen(_handleMlConsentChange);
       _scheduleStartupBackfill();
       _initialized = true;
-      if (flagService.internalUser) {
-        try {
-          await _scheduleTimelinesForMemoriesStrip();
-        } catch (e, s) {
-          _logger.severe("_scheduleTimelinesForMemoriesStrip failed:", e, s);
-        }
-      }
       await _queueFullRecompute();
     } catch (e, s) {
       _logger.severe("Initialization failed", e, s);
@@ -115,13 +108,6 @@ class MemoryLaneService {
         return;
       }
       persons.addAll(await PersonService.instance.getPersons());
-      for (final person in persons) {
-        if (person.data.isIgnored) {
-          await _invalidateTimeline(person.remoteID);
-          continue;
-        }
-        schedulePersonRecompute(person.remoteID, force: force);
-      }
     }
     if (flagService.internalUser) {
       final assigned = <String>{};
@@ -131,6 +117,24 @@ class MemoryLaneService {
         }
       }
       _topNClusters = await _mlDataDB.getClustersForMemoryLane(assigned);
+    }
+    if (flagService.internalUser) {
+      try {
+        await _scheduleTimelinesForMemoriesStrip();
+      } catch (e, s) {
+        _logger.severe("_scheduleTimelinesForMemoriesStrip failed:", e, s);
+      }
+    }
+    if (!isLocalGalleryMode) {
+      for (final person in persons) {
+        if (person.data.isIgnored) {
+          await _invalidateTimeline(person.remoteID);
+          continue;
+        }
+        schedulePersonRecompute(person.remoteID, force: force);
+      }
+    }
+    if (flagService.internalUser) {
       final cache = await _cacheService.getCache();
       final List<Future<void>> tasks = [];
       for (final timeline in cache.allTimelines) {
