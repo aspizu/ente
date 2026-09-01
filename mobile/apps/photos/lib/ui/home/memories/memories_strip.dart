@@ -131,46 +131,41 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
       initialData: _initialMemories,
       builder: (context, snapshot) {
         final memories = snapshot.data ?? [];
-        if (memories.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            FutureBuilder(
-              future: _shouldShowCraftingMemoriesLoaded,
+        return FutureBuilder(
+          future: _shouldShowCraftingMemoriesLoaded,
+          builder: (context, _) {
+            final cardHeight = _cardWidth / kMemoryCardAspectRatio;
+            return FutureBuilder(
+              future: _memoryLaneLoaded,
               builder: (context, _) {
-                final cardHeight = _cardWidth / kMemoryCardAspectRatio;
-                return FutureBuilder(
-                  future: _memoryLaneLoaded,
-                  builder: (context, _) {
-                    final cards = _buildCards(memories, cardHeight);
-                    return SizedBox(
-                      height: cardHeight + 2,
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: kMemoryCardStripGap / 2.0,
-                        ),
-                        physics: const AlwaysScrollableScrollPhysics(
-                          parent: BouncingScrollPhysics(),
-                        ),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: cards.length,
-                        itemBuilder: (context, i) => KeyedSubtree(
-                          key: ValueKey(cards[i].id),
-                          child: cards[i].widget(),
-                        ),
+                final cards = _buildCards(memories, cardHeight);
+                if (cards.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12, bottom: 10),
+                  child: SizedBox(
+                    height: cardHeight + 2,
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: kMemoryCardStripGap / 2.0,
                       ),
-                    );
-                  },
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: cards.length,
+                      itemBuilder: (context, i) => KeyedSubtree(
+                        key: ValueKey(cards[i].id),
+                        child: cards[i].widget(),
+                      ),
+                    ),
+                  ),
                 );
               },
-            ),
-
-            const SizedBox(height: 10),
-          ],
+            );
+          },
         ).animate().fadeIn(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOutCirc,
@@ -205,8 +200,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     final memoryLane = _memoryLane;
     final oldestMemoryLaneFace = _oldestMemoryLaneFace;
     final newestMemoryLaneFace = _newestMemoryLaneFace;
+    final hasContent = memories.isNotEmpty || memoryLane != null;
     return [
-      if (_shouldShowCraftingMemories)
+      if (_shouldShowCraftingMemories && hasContent)
         MemoryCardWrapper(
           id: "craftingMemories",
           widget: () => CraftingMemoriesCardWidget(
