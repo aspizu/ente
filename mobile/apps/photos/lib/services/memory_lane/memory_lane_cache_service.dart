@@ -60,6 +60,33 @@ class MemoryLaneCacheService {
     return cache[personId];
   }
 
+  Future<MemoryLanePersonTimeline?> getScheduledMemoriesStripTimeline() async {
+    final cache = await getCache();
+    final nowMicros = DateTime.now().microsecondsSinceEpoch;
+    MemoryLanePersonTimeline? currentTimeline;
+    int? currentBeginShowingAt;
+    for (final entry in cache.memoriesStripSchedule.entries) {
+      final timeline = cache.timelines[entry.key];
+      final schedule = entry.value;
+      final endShowingAt =
+          schedule.beginShowingAt +
+          MemoryLaneSchedule.displayDuration.inMicroseconds;
+      if (schedule.beginShowingAt > nowMicros ||
+          nowMicros >= endShowingAt ||
+          timeline == null ||
+          !timeline.isEligible ||
+          timeline.entries.isEmpty) {
+        continue;
+      }
+      if (currentBeginShowingAt == null ||
+          schedule.beginShowingAt > currentBeginShowingAt) {
+        currentTimeline = timeline;
+        currentBeginShowingAt = schedule.beginShowingAt;
+      }
+    }
+    return currentTimeline;
+  }
+
   Future<MemoryLaneComputeLogEntry?> getComputeLogEntry(String personId) async {
     final cache = await getCache();
     return cache.computeLog[personId];
