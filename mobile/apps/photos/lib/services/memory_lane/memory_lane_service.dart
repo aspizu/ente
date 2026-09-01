@@ -926,6 +926,7 @@ class MemoryLaneService {
       final isInCooldown =
           nowMicros - entry.value.beginShowingAt < cooldownMicros;
       if (timeline == null ||
+          (timeline.isCluster && !_topNClusters.contains(timeline.personId)) ||
           !timeline.isEligible ||
           timeline.entries.isEmpty ||
           !isInCooldown) {
@@ -949,6 +950,7 @@ class MemoryLaneService {
       (t) =>
           t.isEligible &&
           t.entries.isNotEmpty &&
+          (!t.isCluster || _topNClusters.contains(t.personId)) &&
           (!cache.memoriesStripSchedule.containsKey(t.personId) ||
               invalid.contains(t.personId)),
     );
