@@ -1,5 +1,4 @@
 import "dart:async";
-import "dart:typed_data";
 
 import "package:collection/collection.dart";
 import "package:computer/computer.dart";
@@ -105,7 +104,6 @@ class MemoryLaneService {
     if (!isFeatureEnabled) {
       return;
     }
-    final personRecomputes = <Future<void>>[];
     final List<PersonEntity> persons = [];
     if (!isLocalGalleryMode) {
       if (!PersonService.isInitialized) {
@@ -118,9 +116,7 @@ class MemoryLaneService {
           await _invalidateTimeline(person.remoteID);
           continue;
         }
-        personRecomputes.add(
-          schedulePersonRecompute(person.remoteID, force: force),
-        );
+        schedulePersonRecompute(person.remoteID, force: force);
       }
     }
     if (flagService.internalUser) {
@@ -143,31 +139,28 @@ class MemoryLaneService {
         unawaited(Future.wait(tasks).then((_) => _refreshReadyPersonIds()));
       }
       for (final cluster in _topNClusters) {
-        unawaited(
-          schedulePersonRecompute(cluster, isCluster: true, force: force),
-        );
+        schedulePersonRecompute(cluster, isCluster: true, force: force);
       }
     }
-    await Future.wait(personRecomputes);
   }
 
-  Future<void> schedulePersonRecompute(
+  void schedulePersonRecompute(
     String personId, {
     bool isCluster = false,
     bool force = false,
   }) {
     if (personId.isEmpty) {
-      return Future<void>.value();
+      return;
     }
     final pendingRequest = _pendingRequests[personId];
     if (pendingRequest != null) {
-      if (!force) return pendingRequest.completion;
+      if (!force) return;
       pendingRequest.isRevoked = true;
       _precomputeQueue.removeTask(pendingRequest);
     }
     final request = _TimelineRequest(force);
     _pendingRequests[personId] = request;
-    request.completion = _precomputeQueue
+    _precomputeQueue
         .addTask(request, () async {
           try {
             await _recomputeTimelineForPerson(
@@ -189,7 +182,6 @@ class MemoryLaneService {
             _logger.severe("Recompute failed for $personId", e, s);
           }
         });
-    return request.completion;
   }
 
   Future<void> ensureTimelineReachability(
@@ -208,7 +200,7 @@ class MemoryLaneService {
     final timeline = await _cacheService.getTimeline(personId);
     if (timeline == null || !timeline.isEligible || timeline.entries.isEmpty) {
       await _refreshReadyPersonIds();
-      unawaited(schedulePersonRecompute(personId, isCluster: isCluster));
+      schedulePersonRecompute(personId, isCluster: isCluster);
       return;
     }
     if (await _areTimelineFaceCropsCached(timeline)) {
@@ -251,9 +243,7 @@ class MemoryLaneService {
 
     _logger.info("Removing timeline with hidden files for $personId");
     await _invalidateTimeline(personId);
-    unawaited(
-      schedulePersonRecompute(personId, isCluster: isCluster, force: true),
-    );
+    schedulePersonRecompute(personId, isCluster: isCluster, force: true);
     return null;
   }
 
@@ -369,7 +359,7 @@ class MemoryLaneService {
     final clusterID = event.source;
     if (clusterID.isEmpty) return;
     if (!_topNClusters.contains(clusterID)) return;
-    unawaited(schedulePersonRecompute(clusterID, isCluster: true, force: true));
+    schedulePersonRecompute(clusterID, isCluster: true, force: true);
   }
 
   Future<void> _processPeopleChange(PeopleChangedEvent event) async {
@@ -385,7 +375,7 @@ class MemoryLaneService {
     }
     final logEntry = await _cacheService.getComputeLogEntry(person.remoteID);
     if (logEntry == null) {
-      unawaited(schedulePersonRecompute(person.remoteID, force: true));
+      schedulePersonRecompute(person.remoteID, force: true);
       return;
     }
     final Set<String> faceIds = await _mlDataDB.getFaceIDsForPerson(
@@ -405,12 +395,12 @@ class MemoryLaneService {
     final Set<String> currentFaceIdSet = faceIds;
 
     if (_timelineFacesMissing(timeline, currentFaceIdSet)) {
-      unawaited(schedulePersonRecompute(person.remoteID));
+      schedulePersonRecompute(person.remoteID);
       return;
     }
 
     if (birthDateChanged) {
-      unawaited(schedulePersonRecompute(person.remoteID));
+      schedulePersonRecompute(person.remoteID);
       return;
     }
 
@@ -423,7 +413,7 @@ class MemoryLaneService {
       _eligibleCreationTimeCutoffMicros(person.data.birthDate),
     );
     if (_hasNewYearWithTenFaces(timeline, facesPerYear)) {
-      unawaited(schedulePersonRecompute(person.remoteID));
+      schedulePersonRecompute(person.remoteID);
       return;
     }
   }
@@ -467,7 +457,7 @@ class MemoryLaneService {
         return;
       }
       for (final personId in missingIds) {
-        unawaited(schedulePersonRecompute(personId, force: true));
+        schedulePersonRecompute(personId, force: true);
       }
     } catch (e, s) {
       _logger.severe("Startup backfill failed", e, s);
@@ -1025,7 +1015,6 @@ class MemoryLaneService {
 class _TimelineRequest {
   final bool force;
   bool isRevoked = false;
-  late final Future<void> completion;
 
   _TimelineRequest(this.force);
 }
