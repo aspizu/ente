@@ -903,6 +903,9 @@ class MemoryLaneService {
   }
 
   Future<void> _scheduleTimelinesForMemoriesStrip() async {
+    if (!isFeatureEnabled) {
+      return;
+    }
     final scheduleWindowMs = MemoryLaneSchedule.displayDuration.inMicroseconds;
     final cooldownMs = const Duration(days: 30).inMicroseconds;
     final cache = await _cacheService.getCache();
