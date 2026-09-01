@@ -950,6 +950,36 @@ class MemoryLaneService {
     );
   }
 
+  Future<(Uint8List, Uint8List)?> getOldestAndNewestFaceCrops(
+    MemoryLanePersonTimeline timeline,
+  ) async {
+    Future<Uint8List?> getCrop(MemoryLaneEntry entry, EnteFile file) async {
+      final faces = await _mlDataDB.getFacesForGivenFileID(entry.fileId);
+      final face = faces?.firstWhereOrNull((f) => f.faceID == entry.faceId);
+      if (face == null) return null;
+      return (await getCachedFaceCrops(
+        file,
+        [face],
+        useFullFile: true,
+        useTempCache: false,
+      ))?[entry.faceId];
+    }
+
+    final oldest = timeline.entries.first;
+    final newest = timeline.entries.last;
+    final filesById = await getTimelineFiles([oldest.fileId, newest.fileId]);
+    final oldestFile = filesById[oldest.fileId];
+    final newestFile = filesById[newest.fileId];
+    if (oldestFile == null || newestFile == null) return null;
+
+    final (oldestCrop, newestCrop) = await (
+      getCrop(oldest, oldestFile),
+      getCrop(newest, newestFile),
+    ).wait;
+    if (oldestCrop == null || newestCrop == null) return null;
+    return (oldestCrop, newestCrop);
+  }
+
   Future<void> _scheduleTimelinesForMemoriesStrip() async {
     if (!isFeatureEnabled) {
       return;
