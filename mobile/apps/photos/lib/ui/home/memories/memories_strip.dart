@@ -335,18 +335,14 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
         !MemoryLaneService.instance.isFeatureEnabled) {
       return;
     }
-    final timeline = await MemoryLaneCacheService.instance
+    final timeline = await MemoryLaneService.instance
         .getScheduledMemoriesStripTimeline();
     if (timeline == null) {
       return;
     }
     final faceCrops = await MemoryLaneService.instance
         .getOldestAndNewestFaceCrops(timeline);
-    if (faceCrops == null ||
-        !hasGrantedMLConsent ||
-        !MemoryLaneService.instance.readyPersonIds.value.contains(
-          timeline.personId,
-        )) {
+    if (faceCrops == null || !hasGrantedMLConsent) {
       return;
     }
     _memoryLane = timeline;
