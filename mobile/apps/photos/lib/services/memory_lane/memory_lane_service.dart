@@ -116,7 +116,11 @@ class MemoryLaneService {
           assigned.add(cluster.id);
         }
       }
-      _topNClusters = await _mlDataDB.getClustersForMemoryLane(assigned);
+      try {
+        _topNClusters = await _mlDataDB.getClustersForMemoryLane(assigned);
+      } catch (e, s) {
+        _logger.severe("getClustersForMemoryLane failed:", e, s);
+      }
     }
     if (flagService.internalUser) {
       try {
