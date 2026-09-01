@@ -83,7 +83,11 @@ class MemoryLaneService {
       _scheduleStartupBackfill();
       _initialized = true;
       if (flagService.internalUser) {
-        await _scheduleTimelinesForMemoriesStrip();
+        try {
+          await _scheduleTimelinesForMemoriesStrip();
+        } catch (e, s) {
+          _logger.severe("_scheduleTimelinesForMemoriesStrip failed:", e, s);
+        }
       }
       await _queueFullRecompute();
     } catch (e, s) {
@@ -906,15 +910,17 @@ class MemoryLaneService {
     if (!isFeatureEnabled) {
       return;
     }
-    final scheduleWindowMs = MemoryLaneSchedule.displayDuration.inMicroseconds;
-    final cooldownMs = const Duration(days: 30).inMicroseconds;
+    final scheduleWindowMicros =
+        MemoryLaneSchedule.displayDuration.inMicroseconds;
+    final cooldownMicros = const Duration(days: 30).inMicroseconds;
     final cache = await _cacheService.getCache();
     final nowMicros = DateTime.now().microsecondsSinceEpoch;
 
     final invalid = <String>{};
     for (final entry in cache.memoriesStripSchedule.entries) {
       final timeline = cache.timelines[entry.key];
-      final isInCooldown = nowMicros - entry.value.beginShowingAt < cooldownMs;
+      final isInCooldown =
+          nowMicros - entry.value.beginShowingAt < cooldownMicros;
       if (timeline == null ||
           !timeline.isEligible ||
           timeline.entries.isEmpty ||
@@ -927,7 +933,7 @@ class MemoryLaneService {
         .where((entry) => !invalid.contains(entry.key))
         .toList();
     final alreadyScheduledAhead = valid.any(
-      (s) => s.value.beginShowingAt >= nowMicros + scheduleWindowMs,
+      (s) => s.value.beginShowingAt >= nowMicros + scheduleWindowMicros,
     );
     if (alreadyScheduledAhead) {
       await _cacheService.updateMemoriesStripSchedule(invalid, null);
@@ -948,7 +954,7 @@ class MemoryLaneService {
     }
 
     final newBeginShowingAt = valid
-        .map((entry) => entry.value.beginShowingAt + scheduleWindowMs)
+        .map((entry) => entry.value.beginShowingAt + scheduleWindowMicros)
         .followedBy([nowMicros])
         .max;
     await _cacheService.updateMemoriesStripSchedule(

@@ -1,10 +1,12 @@
 import "dart:convert";
 import "dart:io";
 
+import "package:collection/collection.dart";
 import "package:logging/logging.dart";
 import "package:path/path.dart" as p;
 import "package:path_provider/path_provider.dart";
 import "package:photos/models/memory_lane/memory_lane_models.dart";
+import "package:photos/services/search_service.dart";
 import "package:synchronized/synchronized.dart";
 
 class MemoryLaneCacheService {
@@ -63,26 +65,30 @@ class MemoryLaneCacheService {
   Future<MemoryLanePersonTimeline?> getScheduledMemoriesStripTimeline() async {
     final cache = await getCache();
     final nowMicros = DateTime.now().microsecondsSinceEpoch;
-    MemoryLanePersonTimeline? currentTimeline;
-    int? currentBeginShowingAt;
-    for (final entry in cache.memoriesStripSchedule.entries) {
-      final timeline = cache.timelines[entry.key];
-      final schedule = entry.value;
-      final endShowingAt =
-          schedule.beginShowingAt +
-          MemoryLaneSchedule.displayDuration.inMicroseconds;
-      if (schedule.beginShowingAt > nowMicros ||
-          nowMicros >= endShowingAt ||
-          timeline == null ||
-          !timeline.isEligible ||
-          timeline.entries.isEmpty) {
-        continue;
-      }
-      if (currentBeginShowingAt == null ||
-          schedule.beginShowingAt > currentBeginShowingAt) {
-        currentTimeline = timeline;
-        currentBeginShowingAt = schedule.beginShowingAt;
-      }
+    final timelineKey = maxBy(
+      cache.memoriesStripSchedule.entries.where((e) {
+        final timeline = cache.timelines[e.key];
+        final schedule = e.value;
+        final endShowingAt =
+            schedule.beginShowingAt +
+            MemoryLaneSchedule.displayDuration.inMicroseconds;
+        final inWindow =
+            schedule.beginShowingAt <= nowMicros && nowMicros < endShowingAt;
+        return inWindow &&
+            timeline != null &&
+            timeline.isEligible &&
+            timeline.entries.isNotEmpty;
+      }),
+      (entry) => entry.value.beginShowingAt,
+    )?.key;
+    final currentTimeline = cache.timelines[timelineKey];
+    if (currentTimeline == null) return null;
+    final hiddenFileIds = (await SearchService.instance.getHiddenFiles())
+        .map((f) => f.uploadedFileID)
+        .whereType<int>()
+        .toSet();
+    if (currentTimeline.entries.any((e) => hiddenFileIds.contains(e.fileId))) {
+      return null;
     }
     return currentTimeline;
   }
