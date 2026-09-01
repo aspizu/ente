@@ -70,6 +70,30 @@ class MemoryLaneCacheService {
     return Map<String, MemoryLaneComputeLogEntry>.from(cache.computeLog);
   }
 
+  Future<void> updateMemoriesStripSchedule(
+    Set<String> invalid,
+    MemoryLaneSchedule? schedule,
+  ) async {
+    if (invalid.isEmpty && schedule == null) {
+      return;
+    }
+    await _ensureInitialized();
+    await _lock.synchronized(() async {
+      final currentCache = await _loadCacheUnsafe();
+      var updatedCache = currentCache.copyWithoutMemoriesStripScheduleEntries(
+        invalid,
+      );
+      if (schedule != null) {
+        updatedCache = updatedCache.copyWithMemoriesStripScheduleEntry(
+          schedule.personID,
+          schedule,
+        );
+      }
+      _cache = updatedCache;
+      await _writeCacheUnsafe();
+    });
+  }
+
   Future<void> upsertTimelineAndLog(
     MemoryLanePersonTimeline timeline,
     MemoryLaneComputeLogEntry log,

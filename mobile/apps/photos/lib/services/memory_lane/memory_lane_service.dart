@@ -82,6 +82,9 @@ class MemoryLaneService {
       Bus.instance.on<MLConsentChangedEvent>().listen(_handleMlConsentChange);
       _scheduleStartupBackfill();
       _initialized = true;
+      if (flagService.internalUser) {
+        await _scheduleTimelinesForMemoriesStrip();
+      }
       await _queueFullRecompute();
     } catch (e, s) {
       _logger.severe("Initialization failed", e, s);
@@ -896,6 +899,69 @@ class MemoryLaneService {
     );
     return Map.fromEntries(
       files.map((file) => MapEntry(localIdToId[file.localID]!, file)),
+    );
+  }
+
+  Future<void> _scheduleTimelinesForMemoriesStrip() async {
+    final scheduleWindowMs = MemoryLaneSchedule.displayDuration.inMicroseconds;
+    final cooldownMs = const Duration(days: 30).inMicroseconds;
+    final cache = await _cacheService.getCache();
+    final nowMicros = DateTime.now().microsecondsSinceEpoch;
+
+    final invalid = <String>{};
+    for (final entry in cache.memoriesStripSchedule.entries) {
+      final timeline = cache.timelines[entry.key];
+      final isInCooldown = nowMicros - entry.value.beginShowingAt < cooldownMs;
+      if (timeline == null ||
+          !timeline.isEligible ||
+          timeline.entries.isEmpty ||
+          !isInCooldown) {
+        invalid.add(entry.key);
+      }
+    }
+
+    final valid = cache.memoriesStripSchedule.entries
+        .where((entry) => !invalid.contains(entry.key))
+        .toList();
+    final alreadyScheduledAhead = valid.any(
+      (s) => s.value.beginShowingAt >= nowMicros + scheduleWindowMs,
+    );
+    if (alreadyScheduledAhead) {
+      await _cacheService.updateMemoriesStripSchedule(invalid, null);
+      return;
+    }
+
+    final timelines = cache.allTimelines.toList()..shuffle();
+    final timeline = timelines.firstWhereOrNull(
+      (t) =>
+          t.isEligible &&
+          t.entries.isNotEmpty &&
+          (!cache.memoriesStripSchedule.containsKey(t.personId) ||
+              invalid.contains(t.personId)),
+    );
+    if (timeline == null) {
+      await _cacheService.updateMemoriesStripSchedule(invalid, null);
+      return;
+    }
+
+    final newBeginShowingAt = valid
+        .map((entry) => entry.value.beginShowingAt + scheduleWindowMs)
+        .followedBy([nowMicros])
+        .max;
+    await _cacheService.updateMemoriesStripSchedule(
+      invalid,
+      MemoryLaneSchedule(
+        personID: timeline.personId,
+        isCluster: timeline.isCluster,
+        beginShowingAt: newBeginShowingAt,
+      ),
+    );
+
+    unawaited(
+      ensureTimelineReachability(
+        timeline.personId,
+        isCluster: timeline.isCluster,
+      ),
     );
   }
 }
