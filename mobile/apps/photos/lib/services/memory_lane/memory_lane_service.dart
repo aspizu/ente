@@ -109,10 +109,6 @@ class MemoryLaneService {
       }
       persons.addAll(await PersonService.instance.getPersons());
     }
-    final hiddenFromMemoriesPersonIds = persons
-        .where((person) => person.data.hideFromMemories)
-        .map((person) => person.remoteID)
-        .toSet();
     if (flagService.internalUser) {
       final assigned = <String>{};
       for (final person in persons) {
@@ -128,7 +124,7 @@ class MemoryLaneService {
     }
     if (flagService.internalUser) {
       try {
-        await _scheduleTimelinesForMemoriesStrip(hiddenFromMemoriesPersonIds);
+        await _scheduleTimelinesForMemoriesStrip();
       } catch (e, s) {
         _logger.severe("_scheduleTimelinesForMemoriesStrip failed:", e, s);
       }
@@ -238,29 +234,23 @@ class MemoryLaneService {
     if (timeline == null || timeline.entries.isEmpty) {
       return timeline;
     }
-
-    final hiddenFiles = await SearchService.instance.getHiddenFiles();
-    final hiddenFileIds = hiddenFiles
-        .map((e) => e.uploadedFileID)
+    final hiddenFileIds = (await SearchService.instance.getHiddenFiles())
+        .map((file) => file.uploadedFileID)
         .whereType<int>()
         .toSet();
-    final containsHiddenEntry = timeline.entries.any(
-      (entry) => hiddenFileIds.contains(entry.fileId),
-    );
-    if (!containsHiddenEntry) {
-      if (timeline.isEligible && !await _areTimelineFaceCropsCached(timeline)) {
-        _logger.info("Missing face crops for $personId");
-        _queueTimelineCropReadiness(personId, isCluster: isCluster);
-        await _refreshReadyPersonIds();
-        return null;
-      }
-      return timeline;
+    if (timeline.entries.any((entry) => hiddenFileIds.contains(entry.fileId))) {
+      _logger.info("Removing timeline with hidden files for $personId");
+      await _invalidateTimeline(personId);
+      schedulePersonRecompute(personId, isCluster: isCluster, force: true);
+      return null;
     }
-
-    _logger.info("Removing timeline with hidden files for $personId");
-    await _invalidateTimeline(personId);
-    schedulePersonRecompute(personId, isCluster: isCluster, force: true);
-    return null;
+    if (timeline.isEligible && !await _areTimelineFaceCropsCached(timeline)) {
+      _logger.info("Missing face crops for $personId");
+      _queueTimelineCropReadiness(personId, isCluster: isCluster);
+      await _refreshReadyPersonIds();
+      return null;
+    }
+    return timeline;
   }
 
   Future<MemoryLanePersonTimeline?> getScheduledMemoriesStripTimeline() async {
@@ -271,14 +261,28 @@ class MemoryLaneService {
     if (schedule == null) {
       return null;
     }
-    if (!schedule.isCluster) {
-      if (!PersonService.isInitialized) return null;
-      final person = await PersonService.instance.getPerson(schedule.personID);
-      if (person?.data.hideFromMemories ?? false) return null;
-    }
-
     final timeline = await _cacheService.getTimeline(schedule.personID);
     if (timeline == null || timeline.entries.isEmpty) {
+      return null;
+    }
+    if (!schedule.isCluster) {
+      if (!PersonService.isInitialized) {
+        return null;
+      }
+      final person = await PersonService.instance.getPerson(schedule.personID);
+      if (person == null) {
+        await _invalidateTimeline(schedule.personID);
+        return null;
+      }
+      if (person.data.isIgnored || person.data.hideFromMemories) {
+        return null;
+      }
+    }
+    final hiddenFileIds = (await SearchService.instance.getHiddenFiles())
+        .map((file) => file.uploadedFileID)
+        .whereType<int>()
+        .toSet();
+    if (timeline.entries.any((entry) => hiddenFileIds.contains(entry.fileId))) {
       return null;
     }
 
@@ -953,9 +957,7 @@ class MemoryLaneService {
     );
   }
 
-  Future<void> _scheduleTimelinesForMemoriesStrip(
-    Set<String> hiddenFromMemoriesPersonIds,
-  ) async {
+  Future<void> _scheduleTimelinesForMemoriesStrip() async {
     if (!isFeatureEnabled) {
       return;
     }
@@ -971,11 +973,9 @@ class MemoryLaneService {
       final isInCooldown =
           nowMicros - entry.value.beginShowingAt < cooldownMicros;
       if (timeline == null ||
-          (timeline.isCluster && !_topNClusters.contains(timeline.personId)) ||
-          (!timeline.isCluster &&
-              hiddenFromMemoriesPersonIds.contains(timeline.personId)) ||
           !timeline.isEligible ||
           timeline.entries.isEmpty ||
+          (timeline.isCluster && !_topNClusters.contains(timeline.personId)) ||
           !isInCooldown) {
         invalid.add(entry.key);
       }
@@ -1003,7 +1003,6 @@ class MemoryLaneService {
           t.isEligible &&
           t.entries.isNotEmpty &&
           (!t.isCluster || _topNClusters.contains(t.personId)) &&
-          (t.isCluster || !hiddenFromMemoriesPersonIds.contains(t.personId)) &&
           (!cache.memoriesStripSchedule.containsKey(t.personId) ||
               invalid.contains(t.personId)),
     );
