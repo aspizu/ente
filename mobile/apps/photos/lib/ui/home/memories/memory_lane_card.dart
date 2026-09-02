@@ -11,7 +11,7 @@ import "package:photos/ui/viewer/file/thumbnail_widget.dart";
 class MemoryLaneCardWidget extends StatelessWidget {
   final EnteFile oldestFile;
   final Uint8List face;
-  final String? personName;
+  final String personName;
   final Size size;
 
   const MemoryLaneCardWidget({
@@ -24,82 +24,75 @@ class MemoryLaneCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = personName?.trim() ?? "";
+    final name = personName.trim();
     final title = name.isEmpty
         ? context.strings.facesTimelineAppBarTitle
         : context.strings.memoryLaneCardTitle(name: name);
-    final scaleX = size.width / 148;
-    final faceDiameter = 40 * scaleX;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kMemoryCardStripGap / 2),
       child: SizedBox(
-        width: 150 * scaleX,
+        width: size.width * 150 / 148,
         height: size.height,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final scaleY = constraints.maxHeight / 215;
-            return Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  top: scaleY,
-                  width: faceDiameter,
-                  height: faceDiameter,
-                  child: ClipOval(
-                    child: Image.memory(
-                      face,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              top: size.height / 215,
+              width: size.width * 40 / 148,
+              height: size.width * 40 / 148,
+              child: ClipOval(
+                child: Image.memory(
+                  face,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+              ),
+            ),
+            Positioned(
+              left: size.width * 2 / 148,
+              top: 0,
+              bottom: 0,
+              width: size.width,
+              child: ClipPath(
+                clipper: const _MemoryLaneBackgroundClipper(),
+                clipBehavior: Clip.antiAlias,
+                child: Container(
+                  foregroundDecoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Color(0xB8000000)],
+                      stops: [0.53663, 0.89955],
                     ),
                   ),
-                ),
-                Positioned(
-                  left: 2 * scaleX,
-                  top: 0,
-                  bottom: 0,
-                  width: size.width,
-                  child: ClipPath(
-                    clipper: const _MemoryLaneBackgroundClipper(),
-                    clipBehavior: Clip.antiAlias,
-                    child: Container(
-                      foregroundDecoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Color(0xB8000000)],
-                          stops: [0.53663, 0.89955],
-                        ),
-                      ),
-                      child: ThumbnailWidget(
-                        oldestFile,
-                        rawThumbnail: true,
-                        shouldShowSyncStatus: false,
-                        thumbnailSize: thumbnailLargeSize,
-                      ),
-                    ),
+                  child: ThumbnailWidget(
+                    oldestFile,
+                    rawThumbnail: true,
+                    shouldShowSyncStatus: false,
+                    thumbnailSize: thumbnailLargeSize,
                   ),
                 ),
-                Positioned(
-                  left: 14 * scaleX,
-                  bottom: 16,
-                  width: 124 * scaleX,
-                  child: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyles.body.copyWith(
-                      height: 16 / 14,
-                      fontFamily: TextStyles.outfitFontFamily,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    textAlign: TextAlign.left,
-                  ),
+              ),
+            ),
+            Positioned(
+              left: size.width * 14 / 148,
+              bottom: 16,
+              width: size.width * 124 / 148,
+              child: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyles.body.copyWith(
+                  height: 16 / 14,
+                  fontFamily: TextStyles.outfitFontFamily,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
                 ),
-              ],
-            );
-          },
+                textAlign: TextAlign.left,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -111,38 +104,67 @@ class _MemoryLaneBackgroundClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    final scaleX = size.width / 148;
-    final scaleY = size.height / 215;
-    double x(double value) => value * scaleX;
-    double y(double value) => value * scaleY;
-    final notchCornerRadius = Radius.elliptical(x(2), y(2));
-
     return Path()
-      ..moveTo(x(132), 0)
-      ..cubicTo(x(140.836555), 0, x(148), y(7.163445), x(148), y(16))
-      ..lineTo(x(148), y(199))
-      ..cubicTo(x(148), y(207.836555), x(140.836555), y(215), x(132), y(215))
-      ..lineTo(x(16), y(215))
-      ..cubicTo(x(7.163445), y(215), 0, y(207.836555), 0, y(199))
-      ..lineTo(0, y(42.161135))
+      ..moveTo(size.width * 132 / 148, 0)
+      ..cubicTo(
+        size.width * 140.836555 / 148,
+        0,
+        size.width,
+        size.height * 7.163445 / 215,
+        size.width,
+        size.height * 16 / 215,
+      )
+      ..lineTo(size.width, size.height * 199 / 215)
+      ..cubicTo(
+        size.width,
+        size.height * 207.836555 / 215,
+        size.width * 140.836555 / 148,
+        size.height,
+        size.width * 132 / 148,
+        size.height,
+      )
+      ..lineTo(size.width * 16 / 148, size.height)
+      ..cubicTo(
+        size.width * 7.163445 / 148,
+        size.height,
+        0,
+        size.height * 207.836555 / 215,
+        0,
+        size.height * 199 / 215,
+      )
+      ..lineTo(0, size.height * 42.161135 / 215)
       ..arcToPoint(
-        Offset(x(3.499597), y(40.837802)),
-        radius: notchCornerRadius,
+        Offset(size.width * 3.499597 / 148, size.height * 40.837802 / 215),
+        radius: Radius.elliptical(size.width * 2 / 148, size.height * 2 / 215),
         clockwise: true,
       )
-      ..cubicTo(x(4.397702), y(41.855532), x(10.831069), y(45), x(18), y(45))
-      ..cubicTo(x(31.254834), y(45), x(42), y(34.254834), x(42), y(21))
       ..cubicTo(
-        x(42),
-        y(11.962976),
-        x(37.00452),
-        y(4.093826),
-        x(36.382774),
-        y(3.748909),
+        size.width * 4.397702 / 148,
+        size.height * 41.855532 / 215,
+        size.width * 10.831069 / 148,
+        size.height * 45 / 215,
+        size.width * 18 / 148,
+        size.height * 45 / 215,
+      )
+      ..cubicTo(
+        size.width * 31.254834 / 148,
+        size.height * 45 / 215,
+        size.width * 42 / 148,
+        size.height * 34.254834 / 215,
+        size.width * 42 / 148,
+        size.height * 21 / 215,
+      )
+      ..cubicTo(
+        size.width * 42 / 148,
+        size.height * 11.962976 / 215,
+        size.width * 37.00452 / 148,
+        size.height * 4.093826 / 215,
+        size.width * 36.382774 / 148,
+        size.height * 3.748909 / 215,
       )
       ..arcToPoint(
-        Offset(x(37.352989), 0),
-        radius: notchCornerRadius,
+        Offset(size.width * 37.352989 / 148, 0),
+        radius: Radius.elliptical(size.width * 2 / 148, size.height * 2 / 215),
         clockwise: true,
       )
       ..close();

@@ -230,7 +230,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
           widget: () => MemoryLaneCardWidget(
             oldestFile: oldestMemoryLaneFile,
             face: newestMemoryLaneFace,
-            personName: _memoryLanePersonName,
+            personName: _memoryLanePersonName ?? "",
             size: Size(_cardWidth, cardHeight),
           ),
         ),
