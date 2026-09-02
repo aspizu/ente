@@ -32,15 +32,15 @@ class MemoryLaneCardWidget extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kMemoryCardStripGap / 2),
       child: SizedBox(
-        width: size.width * 150 / 148,
+        width: size.width * 1.013513513514,
         height: size.height,
         child: Stack(
           children: [
             Positioned(
               left: 0,
-              top: size.height / 215,
-              width: size.width * 40 / 148,
-              height: size.width * 40 / 148,
+              top: size.height * 0.004651162791,
+              width: size.width * 0.270270270270,
+              height: size.width * 0.270270270270,
               child: ClipOval(
                 child: Image.memory(
                   face,
@@ -50,7 +50,7 @@ class MemoryLaneCardWidget extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: size.width * 2 / 148,
+              left: size.width * 0.013513513514,
               top: 0,
               bottom: 0,
               width: size.width,
@@ -76,9 +76,9 @@ class MemoryLaneCardWidget extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: size.width * 14 / 148,
+              left: size.width * 0.094594594595,
               bottom: 16,
-              width: size.width * 124 / 148,
+              width: size.width * 0.837837837838,
               child: Text(
                 title,
                 maxLines: 2,
@@ -105,66 +105,72 @@ class _MemoryLaneBackgroundClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     return Path()
-      ..moveTo(size.width * 132 / 148, 0)
+      ..moveTo(size.width * 0.891891891892, 0)
       ..cubicTo(
-        size.width * 140.836555 / 148,
+        size.width * 0.951598344595,
         0,
         size.width,
-        size.height * 7.163445 / 215,
+        size.height * 0.033318348837,
         size.width,
-        size.height * 16 / 215,
+        size.height * 0.074418604651,
       )
-      ..lineTo(size.width, size.height * 199 / 215)
+      ..lineTo(size.width, size.height * 0.925581395349)
       ..cubicTo(
         size.width,
-        size.height * 207.836555 / 215,
-        size.width * 140.836555 / 148,
+        size.height * 0.966681651163,
+        size.width * 0.951598344595,
         size.height,
-        size.width * 132 / 148,
+        size.width * 0.891891891892,
         size.height,
       )
-      ..lineTo(size.width * 16 / 148, size.height)
+      ..lineTo(size.width * 0.108108108108, size.height)
       ..cubicTo(
-        size.width * 7.163445 / 148,
+        size.width * 0.048401655405,
         size.height,
         0,
-        size.height * 207.836555 / 215,
+        size.height * 0.966681651163,
         0,
-        size.height * 199 / 215,
+        size.height * 0.925581395349,
       )
-      ..lineTo(0, size.height * 42.161135 / 215)
+      ..lineTo(0, size.height * 0.196098302326)
       ..arcToPoint(
-        Offset(size.width * 3.499597 / 148, size.height * 40.837802 / 215),
-        radius: Radius.elliptical(size.width * 2 / 148, size.height * 2 / 215),
+        Offset(size.width * 0.023645925676, size.height * 0.189943265116),
+        radius: Radius.elliptical(
+          size.width * 0.013513513514,
+          size.height * 0.009302325581,
+        ),
         clockwise: true,
       )
       ..cubicTo(
-        size.width * 4.397702 / 148,
-        size.height * 41.855532 / 215,
-        size.width * 10.831069 / 148,
-        size.height * 45 / 215,
-        size.width * 18 / 148,
-        size.height * 45 / 215,
+        size.width * 0.029714202703,
+        size.height * 0.194676893023,
+        size.width * 0.073182898649,
+        size.height * 0.209302325581,
+        size.width * 0.121621621622,
+        size.height * 0.209302325581,
       )
       ..cubicTo(
-        size.width * 31.254834 / 148,
-        size.height * 45 / 215,
-        size.width * 42 / 148,
-        size.height * 34.254834 / 215,
-        size.width * 42 / 148,
-        size.height * 21 / 215,
+        size.width * 0.211181310811,
+        size.height * 0.209302325581,
+        size.width * 0.283783783784,
+        size.height * 0.159324809302,
+        size.width * 0.283783783784,
+        size.height * 0.097674418605,
       )
       ..cubicTo(
-        size.width * 42 / 148,
-        size.height * 11.962976 / 215,
-        size.width * 37.00452 / 148,
-        size.height * 4.093826 / 215,
-        size.width * 36.382774 / 148,
-        size.height * 3.748909 / 215,
+        size.width * 0.283783783784,
+        size.height * 0.055641748837,
+        size.width * 0.250030540541,
+        size.height * 0.019041051163,
+        size.width * 0.245829554054,
+        size.height * 0.017436786047,
       )
       ..arcToPoint(
-        Offset(size.width * 37.352989 / 148, 0),
-        radius: Radius.elliptical(size.width * 2 / 148, size.height * 2 / 215),
+        Offset(size.width * 0.252385060811, 0),
+        radius: Radius.elliptical(
+          size.width * 0.013513513514,
+          size.height * 0.009302325581,
+        ),
         clockwise: true,
       )
       ..close();
