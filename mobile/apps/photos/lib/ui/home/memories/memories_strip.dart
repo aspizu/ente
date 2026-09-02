@@ -388,7 +388,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   }
 
   void _onMLConsentChanged(MLConsentChangedEvent event) {
-    if (event.enabled || !mounted || _memoryLane == null) {
+    if (event.enabled || !mounted) {
       return;
     }
     setState(() {
