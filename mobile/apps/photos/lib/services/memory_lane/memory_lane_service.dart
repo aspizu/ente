@@ -985,9 +985,9 @@ class MemoryLaneService {
       }
     }
 
-    final valid = cache.memoriesStripSchedule.entries
-        .where((entry) => !invalid.contains(entry.key))
-        .toList();
+    final valid = cache.memoriesStripSchedule.entries.where(
+      (entry) => !invalid.contains(entry.key),
+    );
     final alreadyScheduledAhead = valid.any(
       (s) => s.value.beginShowingAt >= nowMicros + scheduleWindowMicros,
     );
