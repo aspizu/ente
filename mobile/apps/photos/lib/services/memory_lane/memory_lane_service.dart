@@ -271,17 +271,31 @@ class MemoryLaneService {
     if (schedule == null) {
       return null;
     }
-    if (schedule.isCluster) {
-      return getTimeline(schedule.personID, isCluster: schedule.isCluster);
+    if (!schedule.isCluster) {
+      if (!PersonService.isInitialized) return null;
+      final person = await PersonService.instance.getPerson(schedule.personID);
+      if (person?.data.hideFromMemories ?? false) return null;
     }
-    if (!PersonService.isInitialized) {
+
+    final timeline = await _cacheService.getTimeline(schedule.personID);
+    if (timeline == null || timeline.entries.isEmpty) {
       return null;
     }
-    final person = await PersonService.instance.getPerson(schedule.personID);
-    if (person?.data.hideFromMemories ?? false) {
+
+    if (!await areFullFaceCropsCached({
+      minBy(timeline.entries, (entry) => entry.creationTimeMicros)!.faceId,
+      maxBy(timeline.entries, (entry) => entry.creationTimeMicros)!.faceId,
+    }, useTempCache: false)) {
+      _logger.info(
+        "Missing memories strip face crops for ${schedule.personID}",
+      );
+      _queueTimelineCropReadiness(
+        schedule.personID,
+        isCluster: schedule.isCluster,
+      );
       return null;
     }
-    return getTimeline(schedule.personID, isCluster: schedule.isCluster);
+    return timeline;
   }
 
   bool hasReadyTimelineSync(String personId, {bool isCluster = false}) {
