@@ -3,7 +3,6 @@ import "dart:typed_data";
 import "package:ente_components/ente_components.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
-import "package:flutter_svg/flutter_svg.dart";
 import "package:photos/core/constants.dart";
 import "package:photos/models/file/file.dart";
 import "package:photos/ui/home/memories/memory_card_constants.dart";
@@ -29,82 +28,128 @@ class MemoryLaneCardWidget extends StatelessWidget {
     final title = name.isEmpty
         ? context.strings.facesTimelineAppBarTitle
         : context.strings.memoryLaneCardTitle(name: name);
-    final radius = size.width * (14 / 148);
-    final stroke = size.width * (5.5 / 148);
-    final colors = context.componentColors;
-    final border = Border.all(color: colors.backgroundBase, width: stroke);
-    final badge = BoxDecoration(shape: BoxShape.circle, border: border);
-    final image = Image.memory(face, fit: BoxFit.cover, gaplessPlayback: true);
-    final tint = ColorFilter.mode(colors.textBase, BlendMode.srcIn);
+    final scaleX = size.width / 148;
+    final faceDiameter = 40 * scaleX;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kMemoryCardStripGap / 2),
-      child: SizedBox.fromSize(
-        size: size,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(
-                radius,
-              ).copyWith(topRight: Radius.circular(size.width * (74 / 148))),
-              child: Container(
-                foregroundDecoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xB8000000)],
-                    stops: [0.53663, 0.89955],
+      child: SizedBox(
+        width: 150 * scaleX,
+        height: size.height,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final scaleY = constraints.maxHeight / 215;
+            return Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: scaleY,
+                  width: faceDiameter,
+                  height: faceDiameter,
+                  child: ClipOval(
+                    child: Image.memory(
+                      face,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    ),
                   ),
                 ),
-                child: ThumbnailWidget(
-                  oldestFile,
-                  rawThumbnail: true,
-                  shouldShowSyncStatus: false,
-                  thumbnailSize: thumbnailLargeSize,
+                Positioned(
+                  left: 2 * scaleX,
+                  top: 0,
+                  bottom: 0,
+                  width: size.width,
+                  child: ClipPath(
+                    clipper: const _MemoryLaneBackgroundClipper(),
+                    clipBehavior: Clip.antiAlias,
+                    child: Container(
+                      foregroundDecoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Color(0xB8000000)],
+                          stops: [0.53663, 0.89955],
+                        ),
+                      ),
+                      child: ThumbnailWidget(
+                        oldestFile,
+                        rawThumbnail: true,
+                        shouldShowSyncStatus: false,
+                        thumbnailSize: thumbnailLargeSize,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Positioned(
-              left: size.width * (94.5 / 148),
-              top: size.height * (1.5 / 215),
-              width: size.width * (55 / 148),
-              height: size.width * (55 / 148),
-              child: Container(
-                decoration: badge,
-                child: ClipOval(child: image),
-              ),
-            ),
-            Positioned(
-              left: size.width * (129.1 / 148),
-              top: size.height * (-0.9 / 215),
-              width: size.width * (19.8 / 148),
-              height: size.width * (19.8 / 148),
-              child: SvgPicture.asset(
-                "assets/icons/memory_lane_card_sparkle.svg",
-                colorFilter: tint,
-              ),
-            ),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 16,
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyles.body.copyWith(
-                  height: 16 / 14,
-                  fontFamily: TextStyles.outfitFontFamily,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
+                Positioned(
+                  left: 14 * scaleX,
+                  bottom: 17 * scaleY,
+                  width: 124 * scaleX,
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyles.body.copyWith(
+                      height: 16 / 14,
+                      fontFamily: TextStyles.outfitFontFamily,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.left,
+                  ),
                 ),
-                textAlign: TextAlign.left,
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _MemoryLaneBackgroundClipper extends CustomClipper<Path> {
+  const _MemoryLaneBackgroundClipper();
+
+  @override
+  Path getClip(Size size) {
+    final scaleX = size.width / 148;
+    final scaleY = size.height / 215;
+    double x(double value) => value * scaleX;
+    double y(double value) => value * scaleY;
+    final notchCornerRadius = Radius.elliptical(x(2), y(2));
+
+    return Path()
+      ..moveTo(x(132), 0)
+      ..cubicTo(x(140.836555), 0, x(148), y(7.163445), x(148), y(16))
+      ..lineTo(x(148), y(199))
+      ..cubicTo(x(148), y(207.836555), x(140.836555), y(215), x(132), y(215))
+      ..lineTo(x(16), y(215))
+      ..cubicTo(x(7.163445), y(215), 0, y(207.836555), 0, y(199))
+      // The Figma vector applies a 2 px radius where the notch meets each
+      // straight card edge. Its exported path omits these corner radii.
+      ..lineTo(0, y(42.161135))
+      ..arcToPoint(
+        Offset(x(3.499597), y(40.837802)),
+        radius: notchCornerRadius,
+        clockwise: true,
+      )
+      ..cubicTo(x(4.397702), y(41.855532), x(10.831069), y(45), x(18), y(45))
+      ..cubicTo(x(31.254834), y(45), x(42), y(34.254834), x(42), y(21))
+      ..cubicTo(
+        x(42),
+        y(11.962976),
+        x(37.00452),
+        y(4.093826),
+        x(36.382774),
+        y(3.748909),
+      )
+      ..arcToPoint(
+        Offset(x(37.352989), 0),
+        radius: notchCornerRadius,
+        clockwise: true,
+      )
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(_MemoryLaneBackgroundClipper oldClipper) => false;
 }
