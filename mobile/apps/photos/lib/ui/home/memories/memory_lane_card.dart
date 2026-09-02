@@ -82,7 +82,7 @@ class MemoryLaneCardWidget extends StatelessWidget {
                 ),
                 Positioned(
                   left: 14 * scaleX,
-                  bottom: 17 * scaleY,
+                  bottom: 16,
                   width: 124 * scaleX,
                   child: Text(
                     title,
