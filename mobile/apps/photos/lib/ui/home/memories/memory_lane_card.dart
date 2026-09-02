@@ -124,8 +124,6 @@ class _MemoryLaneBackgroundClipper extends CustomClipper<Path> {
       ..cubicTo(x(148), y(207.836555), x(140.836555), y(215), x(132), y(215))
       ..lineTo(x(16), y(215))
       ..cubicTo(x(7.163445), y(215), 0, y(207.836555), 0, y(199))
-      // The Figma vector applies a 2 px radius where the notch meets each
-      // straight card edge. Its exported path omits these corner radii.
       ..lineTo(0, y(42.161135))
       ..arcToPoint(
         Offset(x(3.499597), y(40.837802)),
