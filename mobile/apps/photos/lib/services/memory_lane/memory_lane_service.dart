@@ -287,16 +287,9 @@ class MemoryLaneService {
     }
 
     if (!await areFullFaceCropsCached({
-      minBy(timeline.entries, (entry) => entry.creationTimeMicros)!.faceId,
-      maxBy(timeline.entries, (entry) => entry.creationTimeMicros)!.faceId,
+      timeline.entries.first.faceId,
+      timeline.entries.last.faceId,
     }, useTempCache: false)) {
-      _logger.info(
-        "Missing memories strip face crops for ${schedule.personID}",
-      );
-      _queueTimelineCropReadiness(
-        schedule.personID,
-        isCluster: schedule.isCluster,
-      );
       return null;
     }
     return timeline;
