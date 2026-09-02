@@ -962,13 +962,9 @@ class MemoryLaneService {
 
     final invalid = <String>{};
     for (final entry in cache.memoriesStripSchedule.entries) {
-      final timeline = cache.timelines[entry.key];
       final isInCooldown =
           nowMicros - entry.value.beginShowingAt < cooldownMicros;
-      if (timeline == null ||
-          !timeline.isEligible ||
-          timeline.entries.isEmpty ||
-          (timeline.isCluster && !_topNClusters.contains(timeline.personId)) ||
+      if ((entry.value.isCluster && !_topNClusters.contains(entry.key)) ||
           !isInCooldown) {
         invalid.add(entry.key);
       }
