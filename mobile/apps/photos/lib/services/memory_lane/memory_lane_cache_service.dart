@@ -6,7 +6,6 @@ import "package:logging/logging.dart";
 import "package:path/path.dart" as p;
 import "package:path_provider/path_provider.dart";
 import "package:photos/models/memory_lane/memory_lane_models.dart";
-import "package:photos/services/search_service.dart";
 import "package:synchronized/synchronized.dart";
 
 class MemoryLaneCacheService {
@@ -62,35 +61,23 @@ class MemoryLaneCacheService {
     return cache[personId];
   }
 
-  Future<MemoryLanePersonTimeline?> getScheduledMemoriesStripTimeline() async {
+  Future<MemoryLaneSchedule?> getCurrentMemoriesStripSchedule() async {
     final cache = await getCache();
     final nowMicros = DateTime.now().microsecondsSinceEpoch;
-    final timelineKey = maxBy(
-      cache.memoriesStripSchedule.entries.where((e) {
-        final timeline = cache.timelines[e.key];
-        final schedule = e.value;
+    return maxBy(
+      cache.memoriesStripSchedule.entries.where((entry) {
+        final timeline = cache.timelines[entry.key];
         final endShowingAt =
-            schedule.beginShowingAt +
+            entry.value.beginShowingAt +
             MemoryLaneSchedule.displayDuration.inMicroseconds;
-        final inWindow =
-            schedule.beginShowingAt <= nowMicros && nowMicros < endShowingAt;
-        return inWindow &&
+        return entry.value.beginShowingAt <= nowMicros &&
+            nowMicros < endShowingAt &&
             timeline != null &&
             timeline.isEligible &&
             timeline.entries.isNotEmpty;
       }),
       (entry) => entry.value.beginShowingAt,
-    )?.key;
-    final currentTimeline = cache.timelines[timelineKey];
-    if (currentTimeline == null) return null;
-    final hiddenFileIds = (await SearchService.instance.getHiddenFiles())
-        .map((f) => f.uploadedFileID)
-        .whereType<int>()
-        .toSet();
-    if (currentTimeline.entries.any((e) => hiddenFileIds.contains(e.fileId))) {
-      return null;
-    }
-    return currentTimeline;
+    )?.value;
   }
 
   Future<MemoryLaneComputeLogEntry?> getComputeLogEntry(String personId) async {

@@ -109,6 +109,10 @@ class MemoryLaneService {
       }
       persons.addAll(await PersonService.instance.getPersons());
     }
+    final hiddenFromMemoriesPersonIds = persons
+        .where((person) => person.data.hideFromMemories)
+        .map((person) => person.remoteID)
+        .toSet();
     if (flagService.internalUser) {
       final assigned = <String>{};
       for (final person in persons) {
@@ -124,7 +128,7 @@ class MemoryLaneService {
     }
     if (flagService.internalUser) {
       try {
-        await _scheduleTimelinesForMemoriesStrip();
+        await _scheduleTimelinesForMemoriesStrip(hiddenFromMemoriesPersonIds);
       } catch (e, s) {
         _logger.severe("_scheduleTimelinesForMemoriesStrip failed:", e, s);
       }
@@ -257,6 +261,27 @@ class MemoryLaneService {
     await _invalidateTimeline(personId);
     schedulePersonRecompute(personId, isCluster: isCluster, force: true);
     return null;
+  }
+
+  Future<MemoryLanePersonTimeline?> getScheduledMemoriesStripTimeline() async {
+    if (!isFeatureEnabled) {
+      return null;
+    }
+    final schedule = await _cacheService.getCurrentMemoriesStripSchedule();
+    if (schedule == null) {
+      return null;
+    }
+    if (schedule.isCluster) {
+      return getTimeline(schedule.personID, isCluster: schedule.isCluster);
+    }
+    if (!PersonService.isInitialized) {
+      return null;
+    }
+    final person = await PersonService.instance.getPerson(schedule.personID);
+    if (person?.data.hideFromMemories ?? false) {
+      return null;
+    }
+    return getTimeline(schedule.personID, isCluster: schedule.isCluster);
   }
 
   bool hasReadyTimelineSync(String personId, {bool isCluster = false}) {
@@ -914,7 +939,9 @@ class MemoryLaneService {
     );
   }
 
-  Future<void> _scheduleTimelinesForMemoriesStrip() async {
+  Future<void> _scheduleTimelinesForMemoriesStrip(
+    Set<String> hiddenFromMemoriesPersonIds,
+  ) async {
     if (!isFeatureEnabled) {
       return;
     }
@@ -931,6 +958,8 @@ class MemoryLaneService {
           nowMicros - entry.value.beginShowingAt < cooldownMicros;
       if (timeline == null ||
           (timeline.isCluster && !_topNClusters.contains(timeline.personId)) ||
+          (!timeline.isCluster &&
+              hiddenFromMemoriesPersonIds.contains(timeline.personId)) ||
           !timeline.isEligible ||
           timeline.entries.isEmpty ||
           !isInCooldown) {
@@ -941,10 +970,15 @@ class MemoryLaneService {
     final valid = cache.memoriesStripSchedule.entries
         .where((entry) => !invalid.contains(entry.key))
         .toList();
+    final hasCurrentSchedule = valid.any((entry) {
+      final endShowingAt = entry.value.beginShowingAt + scheduleWindowMicros;
+      return entry.value.beginShowingAt <= nowMicros &&
+          nowMicros < endShowingAt;
+    });
     final alreadyScheduledAhead = valid.any(
       (s) => s.value.beginShowingAt >= nowMicros + scheduleWindowMicros,
     );
-    if (alreadyScheduledAhead) {
+    if (hasCurrentSchedule && alreadyScheduledAhead) {
       await _cacheService.updateMemoriesStripSchedule(invalid, null);
       return;
     }
@@ -955,6 +989,7 @@ class MemoryLaneService {
           t.isEligible &&
           t.entries.isNotEmpty &&
           (!t.isCluster || _topNClusters.contains(t.personId)) &&
+          (t.isCluster || !hiddenFromMemoriesPersonIds.contains(t.personId)) &&
           (!cache.memoriesStripSchedule.containsKey(t.personId) ||
               invalid.contains(t.personId)),
     );
@@ -963,10 +998,15 @@ class MemoryLaneService {
       return;
     }
 
-    final newBeginShowingAt = valid
-        .map((entry) => entry.value.beginShowingAt + scheduleWindowMicros)
-        .followedBy([nowMicros])
-        .max;
+    final int newBeginShowingAt;
+    if (hasCurrentSchedule) {
+      newBeginShowingAt = valid
+          .map((entry) => entry.value.beginShowingAt + scheduleWindowMicros)
+          .followedBy([nowMicros])
+          .max;
+    } else {
+      newBeginShowingAt = nowMicros;
+    }
     await _cacheService.updateMemoriesStripSchedule(
       invalid,
       MemoryLaneSchedule(
