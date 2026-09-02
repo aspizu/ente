@@ -1,6 +1,7 @@
 import "dart:convert";
 import "dart:io";
 
+import "package:collection/collection.dart";
 import "package:logging/logging.dart";
 import "package:path/path.dart" as p;
 import "package:path_provider/path_provider.dart";
@@ -63,20 +64,18 @@ class MemoryLaneCacheService {
   Future<MemoryLaneSchedule?> getCurrentMemoriesStripSchedule() async {
     final cache = await getCache();
     final nowMicros = DateTime.now().microsecondsSinceEpoch;
-    for (final entry in cache.memoriesStripSchedule.entries) {
-      final timeline = cache.timelines[entry.key];
+    return cache.memoriesStripSchedule.entries.firstWhereOrNull((e) {
+      final timeline = cache.timelines[e.key];
+      final beginShowingAt = e.value.beginShowingAt;
       final endShowingAt =
-          entry.value.beginShowingAt +
-          MemoryLaneSchedule.displayDuration.inMicroseconds;
-      if (entry.value.beginShowingAt <= nowMicros &&
-          nowMicros < endShowingAt &&
+          beginShowingAt + MemoryLaneSchedule.displayDuration.inMicroseconds;
+      final inWindow =
+          e.value.beginShowingAt <= nowMicros && nowMicros < endShowingAt;
+      return inWindow &&
           timeline != null &&
           timeline.isEligible &&
-          timeline.entries.isNotEmpty) {
-        return entry.value;
-      }
-    }
-    return null;
+          timeline.entries.isNotEmpty;
+    })?.value;
   }
 
   Future<MemoryLaneComputeLogEntry?> getComputeLogEntry(String personId) async {
