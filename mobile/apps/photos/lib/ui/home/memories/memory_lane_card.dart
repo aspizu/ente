@@ -13,12 +13,14 @@ class MemoryLaneCardWidget extends StatelessWidget {
   final Uint8List face;
   final String personName;
   final Size size;
+  final VoidCallback onTap;
 
   const MemoryLaneCardWidget({
     required this.oldestFile,
     required this.face,
     required this.personName,
     required this.size,
+    required this.onTap,
     super.key,
   });
 
@@ -31,68 +33,71 @@ class MemoryLaneCardWidget extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kMemoryCardStripGap / 2),
-      child: SizedBox(
-        width: size.width * 1.013513513514,
-        height: size.height,
-        child: Stack(
-          children: [
-            Positioned(
-              left: 0,
-              top: size.height * 0.004651162791,
-              width: size.width * 0.270270270270,
-              height: size.width * 0.270270270270,
-              child: ClipOval(
-                child: Image.memory(
-                  face,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: size.width * 1.013513513514,
+          height: size.height,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: size.height * 0.004651162791,
+                width: size.width * 0.270270270270,
+                height: size.width * 0.270270270270,
+                child: ClipOval(
+                  child: Image.memory(
+                    face,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              left: size.width * 0.013513513514,
-              top: 0,
-              bottom: 0,
-              width: size.width,
-              child: ClipPath(
-                clipper: const _MemoryLaneBackgroundClipper(),
-                clipBehavior: Clip.antiAlias,
-                child: Container(
-                  foregroundDecoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Color(0xB8000000)],
-                      stops: [0.53663, 0.89955],
+              Positioned(
+                left: size.width * 0.013513513514,
+                top: 0,
+                bottom: 0,
+                width: size.width,
+                child: ClipPath(
+                  clipper: const _MemoryLaneBackgroundClipper(),
+                  clipBehavior: Clip.antiAlias,
+                  child: Container(
+                    foregroundDecoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Color(0xB8000000)],
+                        stops: [0.53663, 0.89955],
+                      ),
+                    ),
+                    child: ThumbnailWidget(
+                      oldestFile,
+                      rawThumbnail: true,
+                      shouldShowSyncStatus: false,
+                      thumbnailSize: thumbnailLargeSize,
                     ),
                   ),
-                  child: ThumbnailWidget(
-                    oldestFile,
-                    rawThumbnail: true,
-                    shouldShowSyncStatus: false,
-                    thumbnailSize: thumbnailLargeSize,
+                ),
+              ),
+              Positioned(
+                left: size.width * 0.094594594595,
+                bottom: 16,
+                width: size.width * 0.837837837838,
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyles.body.copyWith(
+                    height: 16 / 14,
+                    fontFamily: TextStyles.outfitFontFamily,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
                   ),
+                  textAlign: TextAlign.left,
                 ),
               ),
-            ),
-            Positioned(
-              left: size.width * 0.094594594595,
-              bottom: 16,
-              width: size.width * 0.837837837838,
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyles.body.copyWith(
-                  height: 16 / 14,
-                  fontFamily: TextStyles.outfitFontFamily,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.left,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

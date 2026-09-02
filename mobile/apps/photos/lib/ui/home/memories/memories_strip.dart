@@ -3,6 +3,7 @@ import "dart:math";
 import "dart:typed_data";
 
 import "package:collection/collection.dart";
+import "package:ente_pure_utils/ente_pure_utils.dart";
 import 'package:flutter/material.dart';
 import "package:flutter_animate/flutter_animate.dart";
 import "package:photos/core/event_bus.dart";
@@ -15,6 +16,7 @@ import "package:photos/models/file/file.dart";
 import "package:photos/models/memories/smart_memory.dart";
 import "package:photos/models/memory_lane/memory_lane_models.dart";
 import "package:photos/service_locator.dart";
+import "package:photos/services/machine_learning/face_ml/person/person_service.dart";
 import "package:photos/services/memory_lane/memory_lane_cache_service.dart";
 import "package:photos/services/memory_lane/memory_lane_service.dart";
 import "package:photos/ui/home/memories/crafting_memories_card.dart";
@@ -23,6 +25,7 @@ import "package:photos/ui/home/memories/memory_card_constants.dart";
 import "package:photos/ui/home/memories/memory_cover_util.dart";
 import "package:photos/ui/home/memories/memory_lane_card.dart";
 import "package:photos/ui/home/memories/memory_video_prefetcher.dart";
+import "package:photos/ui/viewer/people/memory_lane_page.dart";
 
 class MemoryCardWrapper {
   final String id;
@@ -232,6 +235,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
             face: newestMemoryLaneFace,
             personName: _memoryLanePersonName ?? "",
             size: Size(_cardWidth, cardHeight),
+            onTap: () => _openMemoryLanePage(memoryLane),
           ),
         ),
       ...memories.indexed.map(
@@ -246,6 +250,22 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
         ),
       ),
     ];
+  }
+
+  Future<void> _openMemoryLanePage(MemoryLanePersonTimeline memoryLane) async {
+    if (memoryLane.isCluster) {
+      await routeToPage(
+        context,
+        MemoryLanePage.cluster(clusterID: memoryLane.personId),
+      );
+    } else {
+      if (!PersonService.isInitialized) return;
+      final person = await PersonService.instance.getPerson(
+        memoryLane.personId,
+      );
+      if (person == null || !mounted) return;
+      await routeToPage(context, MemoryLanePage(person: person));
+    }
   }
 
   void _fetchMemories(Event? event) {
