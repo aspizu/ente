@@ -959,12 +959,9 @@ class MemoryLaneService {
     final faces = await _mlDataDB.getFacesForGivenFileID(newest.fileId);
     final face = faces?.firstWhereOrNull((f) => f.faceID == newest.faceId);
     if (face == null) return null;
-    return (await getCachedFaceCrops(
-      newestFile,
-      [face],
-      useFullFile: true,
-      useTempCache: false,
-    ))?[newest.faceId];
+    return (await getCachedFaceCrops(newestFile, [
+      face,
+    ], useTempCache: false))?[newest.faceId];
   }
 
   Future<void> _scheduleTimelinesForMemoriesStrip() async {
