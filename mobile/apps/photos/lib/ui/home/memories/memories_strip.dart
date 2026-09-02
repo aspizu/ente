@@ -343,8 +343,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     if (timeline == null) {
       return;
     }
-    final faceCrops = await MemoryLaneService.instance
-        .getOldestAndNewestFaceCrops(timeline);
+    final newestFaceCrop = await MemoryLaneService.instance.getNewestFaceCrop(
+      timeline,
+    );
     final oldestEntry = timeline.entries.first;
     final oldestFile = (await MemoryLaneService.instance.getTimelineFiles([
       oldestEntry.fileId,
@@ -353,12 +354,12 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
         (await MemoryLaneCacheService.instance.getComputeLogEntry(
           timeline.personId,
         ))?.name;
-    if (faceCrops == null || oldestFile == null || !hasGrantedMLConsent) {
+    if (newestFaceCrop == null || oldestFile == null || !hasGrantedMLConsent) {
       return;
     }
     _memoryLane = timeline;
     _oldestMemoryLaneFile = oldestFile;
-    _newestMemoryLaneFace = faceCrops.$2;
+    _newestMemoryLaneFace = newestFaceCrop;
     _memoryLanePersonName = personName;
   }
 
