@@ -129,7 +129,7 @@ class MemoryLaneService {
     }
     if (flagService.internalUser) {
       try {
-        await _scheduleTimelinesForMemoriesStrip();
+        await _scheduleTimelinesForMemoriesStrip(persons);
       } catch (e, s) {
         _logger.severe("_scheduleTimelinesForMemoriesStrip failed:", e, s);
       }
@@ -955,7 +955,9 @@ class MemoryLaneService {
     );
   }
 
-  Future<void> _scheduleTimelinesForMemoriesStrip() async {
+  Future<void> _scheduleTimelinesForMemoriesStrip(
+    List<PersonEntity> persons,
+  ) async {
     if (!isFeatureEnabled) {
       return;
     }
@@ -964,12 +966,20 @@ class MemoryLaneService {
     final cooldownMicros = const Duration(days: 30).inMicroseconds;
     final cache = await _cacheService.getCache();
     final nowMicros = DateTime.now().microsecondsSinceEpoch;
+    final eligiblePersonIds = persons
+        .where(
+          (person) => !person.data.isIgnored && !person.data.hideFromMemories,
+        )
+        .map((person) => person.remoteID)
+        .toSet();
 
     final invalid = <String>{};
     for (final entry in cache.memoriesStripSchedule.entries) {
       final isInCooldown =
           nowMicros - entry.value.beginShowingAt < cooldownMicros;
-      if ((entry.value.isCluster && !_topNClusters.contains(entry.key)) ||
+      if ((entry.value.isCluster
+              ? !_topNClusters.contains(entry.key)
+              : !eligiblePersonIds.contains(entry.key)) ||
           !isInCooldown) {
         invalid.add(entry.key);
       }
@@ -991,7 +1001,9 @@ class MemoryLaneService {
       (t) =>
           t.isEligible &&
           t.entries.isNotEmpty &&
-          (!t.isCluster || _topNClusters.contains(t.personId)) &&
+          (t.isCluster
+              ? _topNClusters.contains(t.personId)
+              : eligiblePersonIds.contains(t.personId)) &&
           (!cache.memoriesStripSchedule.containsKey(t.personId) ||
               invalid.contains(t.personId)),
     );
