@@ -264,7 +264,6 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
         MemoryLanePage.cluster(clusterID: memoryLane.personId),
       );
     } else {
-      if (!PersonService.isInitialized) return;
       final person = await PersonService.instance.getPerson(
         memoryLane.personId,
       );
