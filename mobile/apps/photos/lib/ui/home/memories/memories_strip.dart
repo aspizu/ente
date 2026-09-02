@@ -358,8 +358,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   }
 
   Future<void> _loadScheduledMemoryLane() async {
-    if (!flagService.internalUser ||
-        !MemoryLaneService.instance.isFeatureEnabled) {
+    if (!flagService.internalUser) {
       return;
     }
     final timeline = await MemoryLaneService.instance
