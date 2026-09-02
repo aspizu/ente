@@ -2504,6 +2504,16 @@
       }
     }
   },
+  "memoryLaneCardTitle": "{name}’s memory lane",
+  "@memoryLaneCardTitle": {
+    "description": "Title for the Memory Lane card on the home screen",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "description": "Person's name"
+      }
+    }
+  },
   "memoryLink": "Memory link",
   "memoryShareLinkDescription": "This link will automatically expire in 7 days.",
   "merchandise": "Merchandise",

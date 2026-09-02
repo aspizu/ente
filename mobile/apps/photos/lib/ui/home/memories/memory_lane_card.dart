@@ -1,6 +1,7 @@
 import "dart:typed_data";
 
 import "package:ente_components/ente_components.dart";
+import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
 import "package:flutter_svg/flutter_svg.dart";
 import "package:photos/core/constants.dart";
@@ -24,8 +25,10 @@ class MemoryLaneCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var title = personName?.trim() ?? "";
-    title = title.isEmpty ? "Memory lane" : "$title’s memory lane";
+    final name = personName?.trim() ?? "";
+    final title = name.isEmpty
+        ? context.strings.facesTimelineAppBarTitle
+        : context.strings.memoryLaneCardTitle(name: name);
     final radius = size.width * (14 / 148);
     final stroke = size.width * (5.5 / 148);
     final colors = context.componentColors;
