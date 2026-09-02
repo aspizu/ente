@@ -12,12 +12,12 @@ import "package:photos/events/memories_changed_event.dart";
 import "package:photos/events/memories_setting_changed.dart";
 import "package:photos/events/memory_seen_event.dart";
 import "package:photos/events/ml_consent_changed_event.dart";
+import "package:photos/events/people_changed_event.dart";
 import "package:photos/models/file/file.dart";
 import "package:photos/models/memories/smart_memory.dart";
 import "package:photos/models/memory_lane/memory_lane_models.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/machine_learning/face_ml/person/person_service.dart";
-import "package:photos/services/memory_lane/memory_lane_cache_service.dart";
 import "package:photos/services/memory_lane/memory_lane_service.dart";
 import "package:photos/ui/home/memories/crafting_memories_card.dart";
 import 'package:photos/ui/home/memories/memory_card.dart';
@@ -46,6 +46,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   late StreamSubscription<MemoriesChangedEvent> _memoriesChangedSubscription;
   late StreamSubscription<MemorySeenEvent> _memorySeenSubscription;
   late StreamSubscription<MLConsentChangedEvent> _mlConsentChangedSubscription;
+  late StreamSubscription<PeopleChangedEvent> _peopleChangedSubscription;
   late double _cardWidth;
 
   // Delay cover warming past startup; generations invalidate stale work.
@@ -88,6 +89,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     _mlConsentChangedSubscription = Bus.instance
         .on<MLConsentChangedEvent>()
         .listen(_onMLConsentChanged);
+    _peopleChangedSubscription = Bus.instance.on<PeopleChangedEvent>().listen(
+      _onPeopleChanged,
+    );
     _memoryLaneLoaded = _loadScheduledMemoryLane();
     MemoryLaneService.instance.readyPersonIds.addListener(
       _onMemoryLaneReadyTimelinesChanged,
@@ -100,6 +104,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     _memoriesChangedSubscription.cancel();
     _memorySeenSubscription.cancel();
     _mlConsentChangedSubscription.cancel();
+    _peopleChangedSubscription.cancel();
     _warmTimer?.cancel();
     _videoPrefetcher.dispose();
     _scrollController.dispose();
@@ -370,10 +375,11 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     final oldestFile = (await MemoryLaneService.instance.getTimelineFiles([
       oldestEntry.fileId,
     ]))[oldestEntry.fileId];
-    final personName =
-        (await MemoryLaneCacheService.instance.getComputeLogEntry(
-          timeline.personId,
-        ))?.name;
+    final personName = timeline.isCluster
+        ? null
+        : (await PersonService.instance.getPerson(
+            timeline.personId,
+          ))?.data.name;
     if (newestFaceCrop == null || oldestFile == null || !hasGrantedMLConsent) {
       return;
     }
@@ -392,6 +398,19 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
       _oldestMemoryLaneFile = null;
       _newestMemoryLaneFace = null;
       _memoryLanePersonName = null;
+    });
+  }
+
+  void _onPeopleChanged(PeopleChangedEvent _) {
+    if (!mounted || _memoryLane == null) {
+      return;
+    }
+    setState(() {
+      _memoryLane = null;
+      _oldestMemoryLaneFile = null;
+      _newestMemoryLaneFace = null;
+      _memoryLanePersonName = null;
+      _memoryLaneLoaded = _loadScheduledMemoryLane();
     });
   }
 
