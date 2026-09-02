@@ -144,7 +144,6 @@ class _MemoryLaneBackgroundClipper extends CustomClipper<Path> {
           size.width * 0.013513513514,
           size.height * 0.009302325581,
         ),
-        clockwise: true,
       )
       ..cubicTo(
         size.width * 0.029714202703,
@@ -176,7 +175,6 @@ class _MemoryLaneBackgroundClipper extends CustomClipper<Path> {
           size.width * 0.013513513514,
           size.height * 0.009302325581,
         ),
-        clockwise: true,
       )
       ..close();
   }
