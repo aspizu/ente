@@ -11,6 +11,7 @@ import "package:photos/events/memories_changed_event.dart";
 import "package:photos/events/memories_setting_changed.dart";
 import "package:photos/events/memory_seen_event.dart";
 import "package:photos/events/ml_consent_changed_event.dart";
+import "package:photos/models/file/file.dart";
 import "package:photos/models/memories/smart_memory.dart";
 import "package:photos/models/memory_lane/memory_lane_models.dart";
 import "package:photos/service_locator.dart";
@@ -50,8 +51,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
   int _fetchMemoriesGeneration = 0;
   String? _lastWarmSignature;
   MemoryLanePersonTimeline? _memoryLane;
-  Uint8List? _oldestMemoryLaneFace;
+  EnteFile? _oldestMemoryLaneFile;
   Uint8List? _newestMemoryLaneFace;
+  String? _memoryLanePersonName;
   final _videoPrefetcher = MemoryVideoPrefetcher();
   final _scrollController = ScrollController();
   bool _shouldShowCraftingMemories = false;
@@ -198,7 +200,7 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     double cardHeight,
   ) {
     final memoryLane = _memoryLane;
-    final oldestMemoryLaneFace = _oldestMemoryLaneFace;
+    final oldestMemoryLaneFile = _oldestMemoryLaneFile;
     final newestMemoryLaneFace = _newestMemoryLaneFace;
     final hasContent = memories.isNotEmpty || memoryLane != null;
     return [
@@ -221,14 +223,15 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
       if (flagService.internalUser &&
           MemoryLaneService.instance.isFeatureEnabled &&
           memoryLane != null &&
-          oldestMemoryLaneFace != null &&
+          oldestMemoryLaneFile != null &&
           newestMemoryLaneFace != null)
         MemoryCardWrapper(
           id: "memoryLane_${memoryLane.personId}",
           widget: () => MemoryLaneCardWidget(
-            memoryLane,
-            oldestMemoryLaneFace,
-            newestMemoryLaneFace,
+            oldestFile: oldestMemoryLaneFile,
+            face: newestMemoryLaneFace,
+            personName: _memoryLanePersonName,
+            size: Size(_cardWidth, cardHeight),
           ),
         ),
       ...memories.indexed.map(
@@ -342,12 +345,21 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     }
     final faceCrops = await MemoryLaneService.instance
         .getOldestAndNewestFaceCrops(timeline);
-    if (faceCrops == null || !hasGrantedMLConsent) {
+    final oldestEntry = timeline.entries.first;
+    final oldestFile = (await MemoryLaneService.instance.getTimelineFiles([
+      oldestEntry.fileId,
+    ]))[oldestEntry.fileId];
+    final personName =
+        (await MemoryLaneCacheService.instance.getComputeLogEntry(
+          timeline.personId,
+        ))?.name;
+    if (faceCrops == null || oldestFile == null || !hasGrantedMLConsent) {
       return;
     }
     _memoryLane = timeline;
-    _oldestMemoryLaneFace = faceCrops.$1;
+    _oldestMemoryLaneFile = oldestFile;
     _newestMemoryLaneFace = faceCrops.$2;
+    _memoryLanePersonName = personName;
   }
 
   void _onMLConsentChanged(MLConsentChangedEvent event) {
@@ -356,8 +368,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     }
     setState(() {
       _memoryLane = null;
-      _oldestMemoryLaneFace = null;
+      _oldestMemoryLaneFile = null;
       _newestMemoryLaneFace = null;
+      _memoryLanePersonName = null;
     });
   }
 
@@ -374,8 +387,9 @@ class _MemoriesStripWidgetState extends State<MemoriesStripWidget> {
     }
     setState(() {
       _memoryLane = null;
-      _oldestMemoryLaneFace = null;
+      _oldestMemoryLaneFile = null;
       _newestMemoryLaneFace = null;
+      _memoryLanePersonName = null;
     });
   }
 }
