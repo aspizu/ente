@@ -120,6 +120,11 @@ class MemoryLaneService {
         _topNClusters = await _mlDataDB.getClustersForMemoryLane(assigned);
       } catch (e, s) {
         _logger.severe("getClustersForMemoryLane failed:", e, s);
+        final cache = await _cacheService.getCache();
+        _topNClusters = cache.timelines.entries
+            .where((entry) => entry.value.isCluster)
+            .map((entry) => entry.key)
+            .toSet();
       }
     }
     if (flagService.internalUser) {
