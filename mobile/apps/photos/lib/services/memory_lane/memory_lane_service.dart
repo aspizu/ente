@@ -984,15 +984,10 @@ class MemoryLaneService {
     final valid = cache.memoriesStripSchedule.entries
         .where((entry) => !invalid.contains(entry.key))
         .toList();
-    final hasCurrentSchedule = valid.any((entry) {
-      final endShowingAt = entry.value.beginShowingAt + scheduleWindowMicros;
-      return entry.value.beginShowingAt <= nowMicros &&
-          nowMicros < endShowingAt;
-    });
     final alreadyScheduledAhead = valid.any(
       (s) => s.value.beginShowingAt >= nowMicros + scheduleWindowMicros,
     );
-    if (hasCurrentSchedule && alreadyScheduledAhead) {
+    if (alreadyScheduledAhead) {
       await _cacheService.updateMemoriesStripSchedule(invalid, null);
       return;
     }
@@ -1011,15 +1006,10 @@ class MemoryLaneService {
       return;
     }
 
-    final int newBeginShowingAt;
-    if (hasCurrentSchedule) {
-      newBeginShowingAt = valid
-          .map((entry) => entry.value.beginShowingAt + scheduleWindowMicros)
-          .followedBy([nowMicros])
-          .max;
-    } else {
-      newBeginShowingAt = nowMicros;
-    }
+    final newBeginShowingAt = valid
+        .map((entry) => entry.value.beginShowingAt + scheduleWindowMicros)
+        .followedBy([nowMicros])
+        .max;
     await _cacheService.updateMemoriesStripSchedule(
       invalid,
       MemoryLaneSchedule(
