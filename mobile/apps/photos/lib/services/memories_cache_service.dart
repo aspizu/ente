@@ -727,7 +727,6 @@ class MemoriesCacheService {
       _cachedMemories = simpleMemories;
       Bus.instance.fire(MemoriesChangedEvent());
     }
-    return;
   }
 
   Future<List<SmartMemory>?> _getMemoriesFromCache() async {
