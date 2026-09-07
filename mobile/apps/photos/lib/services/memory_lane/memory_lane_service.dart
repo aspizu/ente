@@ -71,6 +71,7 @@ class MemoryLaneService {
   Timer? _startupBackfillTimer;
 
   Future<void> init() async {
+    final cacheGeneration = _cacheService.cacheGeneration;
     if (_initialized) {
       return;
     }
@@ -78,6 +79,9 @@ class MemoryLaneService {
       await _cacheService.init();
       await _cacheService.ensureComputeLogVersion(_timelineLogicVersion);
       await _refreshReadyPersonIds();
+      if (cacheGeneration != _cacheService.cacheGeneration) {
+        return;
+      }
       Bus.instance.on<PeopleChangedEvent>().listen(_handlePeopleChange);
       Bus.instance.on<MLConsentChangedEvent>().listen(_handleMlConsentChange);
       _scheduleStartupBackfill();
@@ -98,6 +102,7 @@ class MemoryLaneService {
   }
 
   Future<void> _queueFullRecompute({bool force = false}) async {
+    final cacheGeneration = _cacheService.cacheGeneration;
     if (!isFeatureEnabled) {
       return;
     }
@@ -109,12 +114,22 @@ class MemoryLaneService {
       }
       persons.addAll(await PersonService.instance.getPersons());
       for (final person in persons) {
+        if (cacheGeneration != _cacheService.cacheGeneration) {
+          return;
+        }
         if (person.data.isIgnored) {
           await _invalidateTimeline(person.remoteID);
           continue;
         }
-        schedulePersonRecompute(person.remoteID, force: force);
+        schedulePersonRecompute(
+          person.remoteID,
+          cacheGeneration: cacheGeneration,
+          force: force,
+        );
       }
+    }
+    if (cacheGeneration != _cacheService.cacheGeneration) {
+      return;
     }
     if (flagService.internalUser) {
       final assigned = <String>{};
@@ -123,8 +138,15 @@ class MemoryLaneService {
           assigned.add(cluster.id);
         }
       }
-      _topNClusters = await _mlDataDB.getClustersForMemoryLane(assigned);
+      final topNClusters = await _mlDataDB.getClustersForMemoryLane(assigned);
+      if (cacheGeneration != _cacheService.cacheGeneration) {
+        return;
+      }
+      _topNClusters = topNClusters;
       final cache = await _cacheService.getCache();
+      if (cacheGeneration != _cacheService.cacheGeneration) {
+        return;
+      }
       final List<Future<void>> tasks = [];
       for (final timeline in cache.allTimelines) {
         if (timeline.isCluster && !_topNClusters.contains(timeline.personId)) {
@@ -136,17 +158,23 @@ class MemoryLaneService {
         unawaited(Future.wait(tasks).then((_) => _refreshReadyPersonIds()));
       }
       for (final cluster in _topNClusters) {
-        schedulePersonRecompute(cluster, isCluster: true, force: force);
+        schedulePersonRecompute(
+          cluster,
+          cacheGeneration: cacheGeneration,
+          isCluster: true,
+          force: force,
+        );
       }
     }
   }
 
   void schedulePersonRecompute(
     String personId, {
+    required int cacheGeneration,
     bool isCluster = false,
     bool force = false,
   }) {
-    if (personId.isEmpty) {
+    if (cacheGeneration != _cacheService.cacheGeneration || personId.isEmpty) {
       return;
     }
     final pendingRequest = _pendingRequests[personId];
@@ -155,7 +183,7 @@ class MemoryLaneService {
       pendingRequest.isRevoked = true;
       _precomputeQueue.removeTask(pendingRequest);
     }
-    final request = _TimelineRequest(force, _cacheService.cacheGeneration);
+    final request = _TimelineRequest(force, cacheGeneration);
     _pendingRequests[personId] = request;
     _precomputeQueue
         .addTask(request, () async {
@@ -185,6 +213,7 @@ class MemoryLaneService {
     String personId, {
     bool isCluster = false,
   }) async {
+    final cacheGeneration = _cacheService.cacheGeneration;
     if (!isFeatureEnabled) {
       return;
     }
@@ -197,7 +226,11 @@ class MemoryLaneService {
     final timeline = await _cacheService.getTimeline(personId);
     if (timeline == null || !timeline.isEligible || timeline.entries.isEmpty) {
       await _refreshReadyPersonIds();
-      schedulePersonRecompute(personId, isCluster: isCluster);
+      schedulePersonRecompute(
+        personId,
+        cacheGeneration: cacheGeneration,
+        isCluster: isCluster,
+      );
       return;
     }
     if (await _areTimelineFaceCropsCached(timeline)) {
@@ -212,6 +245,7 @@ class MemoryLaneService {
     String personId, {
     bool isCluster = false,
   }) async {
+    final cacheGeneration = _cacheService.cacheGeneration;
     if (!isFeatureEnabled) {
       return null;
     }
@@ -239,8 +273,16 @@ class MemoryLaneService {
     }
 
     _logger.info("Removing timeline with hidden files for $personId");
+    if (cacheGeneration != _cacheService.cacheGeneration) {
+      return null;
+    }
     await _invalidateTimeline(personId);
-    schedulePersonRecompute(personId, isCluster: isCluster, force: true);
+    schedulePersonRecompute(
+      personId,
+      cacheGeneration: cacheGeneration,
+      isCluster: isCluster,
+      force: true,
+    );
     return null;
   }
 
@@ -356,10 +398,16 @@ class MemoryLaneService {
     final clusterID = event.source;
     if (clusterID.isEmpty) return;
     if (!_topNClusters.contains(clusterID)) return;
-    schedulePersonRecompute(clusterID, isCluster: true, force: true);
+    schedulePersonRecompute(
+      clusterID,
+      cacheGeneration: _cacheService.cacheGeneration,
+      isCluster: true,
+      force: true,
+    );
   }
 
   Future<void> _processPeopleChange(PeopleChangedEvent event) async {
+    final cacheGeneration = _cacheService.cacheGeneration;
     final person = event.person;
     if (person == null) {
       _logger.warning("${event.type.name} event missing person");
@@ -372,7 +420,11 @@ class MemoryLaneService {
     }
     final logEntry = await _cacheService.getComputeLogEntry(person.remoteID);
     if (logEntry == null) {
-      schedulePersonRecompute(person.remoteID, force: true);
+      schedulePersonRecompute(
+        person.remoteID,
+        cacheGeneration: cacheGeneration,
+        force: true,
+      );
       return;
     }
     final Set<String> faceIds = await _mlDataDB.getFaceIDsForPerson(
@@ -392,12 +444,18 @@ class MemoryLaneService {
     final Set<String> currentFaceIdSet = faceIds;
 
     if (_timelineFacesMissing(timeline, currentFaceIdSet)) {
-      schedulePersonRecompute(person.remoteID);
+      schedulePersonRecompute(
+        person.remoteID,
+        cacheGeneration: cacheGeneration,
+      );
       return;
     }
 
     if (birthDateChanged) {
-      schedulePersonRecompute(person.remoteID);
+      schedulePersonRecompute(
+        person.remoteID,
+        cacheGeneration: cacheGeneration,
+      );
       return;
     }
 
@@ -410,19 +468,27 @@ class MemoryLaneService {
       _eligibleCreationTimeCutoffMicros(person.data.birthDate),
     );
     if (_hasNewYearWithTenFaces(timeline, facesPerYear)) {
-      schedulePersonRecompute(person.remoteID);
+      schedulePersonRecompute(
+        person.remoteID,
+        cacheGeneration: cacheGeneration,
+      );
       return;
     }
   }
 
   void _scheduleStartupBackfill() {
+    final cacheGeneration = _cacheService.cacheGeneration;
     _startupBackfillTimer?.cancel();
     _startupBackfillTimer = Timer(_startupBackfillDelay, () {
+      if (cacheGeneration != _cacheService.cacheGeneration) {
+        return;
+      }
       unawaited(_runStartupBackfill());
     });
   }
 
   Future<void> _runStartupBackfill() async {
+    final cacheGeneration = _cacheService.cacheGeneration;
     if (!isFeatureEnabled) {
       return;
     }
@@ -454,7 +520,11 @@ class MemoryLaneService {
         return;
       }
       for (final personId in missingIds) {
-        schedulePersonRecompute(personId, force: true);
+        schedulePersonRecompute(
+          personId,
+          cacheGeneration: cacheGeneration,
+          force: true,
+        );
       }
     } catch (e, s) {
       _logger.severe("Startup backfill failed", e, s);
@@ -876,6 +946,7 @@ class MemoryLaneService {
   }
 
   Future<void> _refreshReadyPersonIds() async {
+    final cacheGeneration = _cacheService.cacheGeneration;
     final cache = await _cacheService.getCache();
     final current = <String>{};
     for (final timeline in cache.allTimelines) {
@@ -886,7 +957,9 @@ class MemoryLaneService {
         current.add(timeline.personId);
       }
     }
-    readyPersonIds.value = current;
+    if (cacheGeneration == _cacheService.cacheGeneration) {
+      readyPersonIds.value = current;
+    }
   }
 
   Future<Map<int, EnteFile>> getTimelineFiles(Iterable<int> fileIds) async {
