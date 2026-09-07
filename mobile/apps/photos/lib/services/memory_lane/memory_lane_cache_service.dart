@@ -150,11 +150,15 @@ class MemoryLaneCacheService {
 
   Future<void> clear() async {
     _cacheGeneration++;
-    await _ensureInitialized();
-    await _lock.synchronized(() async {
-      _cache = MemoryLaneCachePayload.empty();
-      await _writeCacheUnsafe();
-    });
+    try {
+      await _ensureInitialized();
+      await _lock.synchronized(() async {
+        _cache = MemoryLaneCachePayload.empty();
+        await _writeCacheUnsafe();
+      });
+    } catch (e, s) {
+      _logger.info("cache clear failed", e, s);
+    }
   }
 
   Future<void> _ensureInitialized() async {

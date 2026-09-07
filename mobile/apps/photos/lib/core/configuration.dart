@@ -280,14 +280,7 @@ class Configuration implements LockScreenHost, AccountDeletionHost {
       );
     }
 
-    try {
-      await MemoryLaneCacheService.instance.clear();
-    } catch (e) {
-      _logger.info(
-        "MemoryLaneCacheService not initialized or failed to clear",
-        e,
-      );
-    }
+    await MemoryLaneCacheService.instance.clear();
 
     try {
       wrappedService.resetForLogout();
