@@ -971,7 +971,7 @@ class MemoriesCacheService {
         await _scheduleMemoryNotifications([
           ...nowResult.memories,
           ...nextResult.memories,
-        ]);
+        ], cacheGeneration);
         if (cacheGeneration != _cacheGeneration) {
           return;
         }
@@ -1523,9 +1523,15 @@ class MemoriesCacheService {
 
   Future<void> _scheduleMemoryNotifications(
     List<SmartMemory> allMemories,
-  ) async {
-    await _scheduleOnThisDayNotifications(allMemories);
-    await _scheduleBirthdayNotifications(allMemories);
+    int cacheGeneration,
+  ) {
+    return _cacheWriteLock.synchronized(() async {
+      if (cacheGeneration != _cacheGeneration) {
+        return;
+      }
+      await _scheduleOnThisDayNotifications(allMemories);
+      await _scheduleBirthdayNotifications(allMemories);
+    });
   }
 
   Future<void> _scheduleOnThisDayNotifications(

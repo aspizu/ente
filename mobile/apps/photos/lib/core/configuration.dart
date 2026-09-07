@@ -223,10 +223,6 @@ class Configuration implements LockScreenHost, AccountDeletionHost {
     _volatilePassword = null;
     clearAuthenticatedSession();
 
-    await NotificationService.instance.clearAllScheduledNotifications(
-      logLines: false,
-    );
-
     await FilesDB.instance.clearTable();
     await GalleryDownloadsDB.instance.clearTable();
     await CollectionsDB.instance.clearTable();
@@ -279,6 +275,10 @@ class Configuration implements LockScreenHost, AccountDeletionHost {
         e,
       );
     }
+
+    await NotificationService.instance.clearAllScheduledNotifications(
+      logLines: false,
+    );
 
     await MemoryLaneCacheService.instance.clear();
 
