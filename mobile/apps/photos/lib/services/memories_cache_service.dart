@@ -289,7 +289,7 @@ class MemoriesCacheService {
   Future<void> _invalidateDeletedFiles(List<EnteFile> deletedFiles) async {
     final cacheGeneration = _cacheGeneration;
     final deletedMemoryFileIds = await _deletedMemoryFileIds(deletedFiles);
-    if (cacheGeneration != _cacheGeneration || deletedMemoryFileIds.isEmpty) {
+    if (deletedMemoryFileIds.isEmpty) {
       return;
     }
 
