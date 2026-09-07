@@ -600,8 +600,9 @@ class MemoryLaneService {
         isCluster: isCluster,
       ),
       () =>
-          !request.isRevoked && identical(_pendingRequests[personId], request),
-      request.cacheGeneration,
+          request.cacheGeneration == _cacheService.cacheGeneration &&
+          !request.isRevoked &&
+          identical(_pendingRequests[personId], request),
     );
     if (!wasWritten) {
       return;

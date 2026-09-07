@@ -77,11 +77,10 @@ class MemoryLaneCacheService {
     MemoryLanePersonTimeline timeline,
     MemoryLaneComputeLogEntry log,
     bool Function() isCurrent,
-    int cacheGeneration,
   ) async {
     await _ensureInitialized();
     return _lock.synchronized(() async {
-      if (cacheGeneration != _cacheGeneration || !isCurrent()) {
+      if (!isCurrent()) {
         return false;
       }
       final currentCache = await _loadCacheUnsafe();
