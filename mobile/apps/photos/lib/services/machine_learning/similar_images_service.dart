@@ -34,14 +34,12 @@ class SimilarImagesService {
     bool exact = false,
     bool forceRefresh = false,
   }) async {
-    final cacheGeneration = _cacheGeneration;
     try {
       final now = DateTime.now();
       final List<SimilarFiles> result = await _getSimilarFiles(
         distanceThreshold,
         exact,
         forceRefresh,
-        cacheGeneration,
       );
       final duration = DateTime.now().difference(now);
       _logger.info(
@@ -58,8 +56,8 @@ class SimilarImagesService {
     double distanceThreshold,
     bool exact,
     bool forceRefresh,
-    int cacheGeneration,
   ) async {
+    final cacheGeneration = _cacheGeneration;
     final w = (kDebugMode ? EnteWatch('getSimilarFiles') : null)?..start();
     final mlDataDB = MLDataDB.instance;
     _logger.info("Checking migration and filling clip vector DB");
