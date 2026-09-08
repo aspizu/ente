@@ -1,3 +1,4 @@
+import "dart:async";
 import "dart:typed_data";
 import "dart:ui";
 
@@ -6,7 +7,7 @@ import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
 import "package:hugeicons/hugeicons.dart";
-import "package:intl/intl.dart";
+import "package:intl/intl.dart" show DateFormat;
 import "package:logging/logging.dart";
 import "package:photos/db/ml/db.dart";
 import "package:photos/ente_theme_data.dart";
@@ -65,7 +66,10 @@ class MemoryLanePageV2 extends StatefulWidget {
 }
 
 class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
+  static const _playbackInterval = Duration(seconds: 3);
+
   final _logger = Logger("MemoryLanePageV2");
+  Timer? _playbackTimer;
   late final Future<void> _memoryLaneLoaded;
   Future<Uint8List?>? _currentEntryFuture;
   Key _currentEntryKey = UniqueKey();
@@ -78,6 +82,12 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   void initState() {
     super.initState();
     _memoryLaneLoaded = _loadMemoryLane();
+  }
+
+  @override
+  void dispose() {
+    _playbackTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadMemoryLane() async {
@@ -112,12 +122,68 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
       }
       if (_entries.isNotEmpty) {
         _currentEntryFuture = _entries.first;
+        if (_entries.length > 1) _play(0);
       }
     } catch (error) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       final navigator = Navigator.of(context);
       navigator.pop();
       await showGenericErrorDialog(context: navigator.context, error: error);
+    }
+  }
+
+  void _play(int index) {
+    if (_entries.isEmpty) return;
+    setState(() {
+      _playbackTimer?.cancel();
+      _selectEntry(index);
+      if (i == _entries.length - 1) return;
+      _playbackTimer = Timer.periodic(_playbackInterval, (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        setState(() {
+          if (i < _entries.length - 1) {
+            _selectEntry(i + 1);
+          }
+          if (i == _entries.length - 1) {
+            timer.cancel();
+          }
+        });
+      });
+    });
+  }
+
+  void _pause() {
+    setState(() {
+      _playbackTimer?.cancel();
+    });
+  }
+
+  void _resume() {
+    _play(i);
+  }
+
+  void _seekFromPosition(double x, double width) {
+    if (width <= 0 || _entries.isEmpty) return;
+    final index = (x / width * _entries.length).floor().clamp(
+      0,
+      _entries.length - 1,
+    );
+    setState(() {
+      _playbackTimer?.cancel();
+      _selectEntry(index);
+    });
+  }
+
+  void _onPlayPauseTap() {
+    if (_playbackTimer?.isActive ?? false) {
+      _pause();
+    } else if (i == _entries.length - 1) {
+      _play(0);
+    } else {
+      _resume();
     }
   }
 
@@ -151,11 +217,9 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   }
 
   void _selectEntry(int index) {
-    setState(() {
-      if (i != index) _currentEntryKey = UniqueKey();
-      i = index;
-      _currentEntryFuture = _entries[index];
-    });
+    if (i != index) _currentEntryKey = UniqueKey();
+    i = index;
+    _currentEntryFuture = _entries[index];
   }
 
   @override
@@ -377,18 +441,29 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                         ),
                       ),
                     ),
-                    const Expanded(
+                    Expanded(
                       flex: 1,
-                      child: Row(
-                        mainAxisAlignment: .center,
-                        children: [
-                          IconButtonComponent(
-                            variant:
-                                IconButtonComponentVariant.circularTranslucent,
-                            icon: HugeIcon(icon: HugeIcons.strokeRoundedPlay),
-                            size: 48,
-                          ),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 48),
+                        child: Row(
+                          mainAxisAlignment: .center,
+                          children: [
+                            IconButtonComponent(
+                              variant: IconButtonComponentVariant
+                                  .circularTranslucent,
+                              tooltip: (_playbackTimer?.isActive ?? false)
+                                  ? context.strings.facesTimelinePlaybackPause
+                                  : context.strings.facesTimelinePlaybackPlay,
+                              onTap: _onPlayPauseTap,
+                              icon: HugeIcon(
+                                icon: (_playbackTimer?.isActive ?? false)
+                                    ? HugeIcons.strokeRoundedPause
+                                    : HugeIcons.strokeRoundedPlay,
+                              ),
+                              size: 48,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -417,6 +492,8 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
       title = l10n.memoryLaneCardTitle(name: name);
     }
     final dialog = createProgressDialog(context, l10n.creatingLink);
+    final wasPlaying = _playbackTimer?.isActive ?? false;
+    _pause();
 
     try {
       final shareLinkData = await MemoryShareService.instance
@@ -436,10 +513,22 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
       await dialog.hide();
       if (!mounted) return;
       await showGenericErrorBottomSheet(context: context, error: e);
+    } finally {
+      if (mounted && wasPlaying && ModalRoute.of(context)?.isCurrent == true) {
+        _resume();
+      }
     }
   }
 
   Future<void> _onDateTap(EnteFile file) async {
-    await routeToPage(context, JumpToDateGallery(fileToJumpTo: file));
+    final wasPlaying = _playbackTimer?.isActive ?? false;
+    _pause();
+    try {
+      await routeToPage(context, JumpToDateGallery(fileToJumpTo: file));
+    } finally {
+      if (mounted && wasPlaying && ModalRoute.of(context)?.isCurrent == true) {
+        _resume();
+      }
+    }
   }
 }
