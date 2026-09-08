@@ -70,6 +70,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
 
   final _logger = Logger("MemoryLanePageV2");
   Timer? _playbackTimer;
+  bool _wasPlayingBeforeSeek = false;
   late final Future<void> _memoryLaneLoaded;
   Future<Uint8List?>? _currentEntryFuture;
   Key _currentEntryKey = UniqueKey();
@@ -185,6 +186,12 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
     } else {
       _resume();
     }
+  }
+
+  void _onSeekEnd() {
+    final wasPlaying = _wasPlayingBeforeSeek;
+    _wasPlayingBeforeSeek = false;
+    if (wasPlaying) _resume();
   }
 
   Future<Uint8List?> _loadEntry(MemoryLaneEntry entry, EnteFile file) async {
@@ -462,6 +469,77 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                               ),
                               size: 48,
                             ),
+                            if (_entries.isNotEmpty) ...[
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onHorizontalDragDown: (_) {
+                                        _wasPlayingBeforeSeek =
+                                            _playbackTimer?.isActive ?? false;
+                                      },
+                                      onTapDown: (details) => _seekFromPosition(
+                                        details.localPosition.dx,
+                                        constraints.maxWidth,
+                                      ),
+                                      onTapUp: (_) => _onSeekEnd(),
+                                      onHorizontalDragStart: (details) =>
+                                          _seekFromPosition(
+                                            details.localPosition.dx,
+                                            constraints.maxWidth,
+                                          ),
+                                      onHorizontalDragUpdate: (details) =>
+                                          _seekFromPosition(
+                                            details.localPosition.dx,
+                                            constraints.maxWidth,
+                                          ),
+                                      onHorizontalDragEnd: (_) =>
+                                          _onSeekEnd(),
+                                      child: Row(
+                                        children: List.generate(
+                                          _entries.length,
+                                          (index) {
+                                            final distance = (index - i).abs();
+                                            final double size =
+                                                switch (distance) {
+                                                  0 => 15,
+                                                  1 => 10,
+                                                  2 => 7.5,
+                                                  _ => 5,
+                                                };
+                                            return Expanded(
+                                              child: SizedBox(
+                                                height: 40,
+                                                child: Center(
+                                                  child: AnimatedContainer(
+                                                    duration: const Duration(
+                                                      milliseconds: 200,
+                                                    ),
+                                                    width: size,
+                                                    height: size,
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      color: Colors.white
+                                                          .withValues(
+                                                            alpha: distance == 0
+                                                                ? 1
+                                                                : 0.5,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
