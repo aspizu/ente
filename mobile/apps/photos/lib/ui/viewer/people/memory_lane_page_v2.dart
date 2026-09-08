@@ -290,115 +290,108 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                       ),
                   ],
                 ),
-                body: Padding(
-                  padding: const EdgeInsetsGeometry.all(32),
-                  child: Align(
-                    child: AspectRatio(
-                      aspectRatio: 3 / 4,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 1000),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          transitionBuilder: (child, animation) {
-                            return AnimatedBuilder(
-                              animation: animation,
-                              child: FadeTransition(
-                                opacity: animation,
-                                child: ScaleTransition(
-                                  scale: Tween<double>(
-                                    begin: 1,
-                                    end: 1.1,
-                                  ).animate(animation),
-                                  child: child,
-                                ),
-                              ),
-                              builder: (context, child) {
-                                final blur = 12 * (1 - animation.value);
-                                return ImageFiltered(
-                                  imageFilter: ImageFilter.blur(
-                                    sigmaX: blur,
-                                    sigmaY: blur,
-                                  ),
-                                  child: child,
-                                );
-                              },
-                            );
-                          },
-                          child: switch (snapshot.connectionState) {
-                            ConnectionState.done when file != null =>
-                              FutureBuilder<Uint8List?>(
-                                key: _currentEntryKey,
-                                future: _currentEntryFuture,
-                                builder: (context, entrySnapshot) {
-                                  final crop = entrySnapshot.data;
-                                  if (crop == null) {
-                                    if (entrySnapshot.connectionState ==
-                                        ConnectionState.done) {
-                                      return Center(
-                                        child: Text(
-                                          context
-                                              .strings
-                                              .facesTimelineUnavailable,
+                body: Column(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: Padding(
+                        padding: const EdgeInsetsGeometry.all(32),
+                        child: Align(
+                          child: AspectRatio(
+                            aspectRatio: 3 / 4,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 1000),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) {
+                                  return AnimatedBuilder(
+                                    animation: animation,
+                                    child: FadeTransition(
+                                      opacity: animation,
+                                      child: ScaleTransition(
+                                        scale: Tween<double>(
+                                          begin: 1,
+                                          end: 1.1,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    ),
+                                    builder: (context, child) {
+                                      final blur = 12 * (1 - animation.value);
+                                      return ImageFiltered(
+                                        imageFilter: ImageFilter.blur(
+                                          sigmaX: blur,
+                                          sigmaY: blur,
                                         ),
+                                        child: child,
                                       );
-                                    }
-                                    return const Center(
-                                      child: CircularProgressIndicator(),
-                                    );
-                                  }
-                                  return Image.memory(
-                                    crop,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
+                                    },
                                   );
                                 },
-                              ),
-                            ConnectionState.done => Center(
-                              key: const ValueKey("memory-lane-empty"),
-                              child: Text(
-                                context.strings.facesTimelineUnavailable,
+                                child: switch (snapshot.connectionState) {
+                                  ConnectionState.done when file != null =>
+                                    FutureBuilder<Uint8List?>(
+                                      key: _currentEntryKey,
+                                      future: _currentEntryFuture,
+                                      builder: (context, entrySnapshot) {
+                                        final crop = entrySnapshot.data;
+                                        if (crop == null) {
+                                          if (entrySnapshot.connectionState ==
+                                              ConnectionState.done) {
+                                            return Center(
+                                              child: Text(
+                                                context
+                                                    .strings
+                                                    .facesTimelineUnavailable,
+                                              ),
+                                            );
+                                          }
+                                          return const Center(
+                                            child: CircularProgressIndicator(),
+                                          );
+                                        }
+                                        return Image.memory(
+                                          crop,
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                        );
+                                      },
+                                    ),
+                                  ConnectionState.done => Center(
+                                    key: const ValueKey("memory-lane-empty"),
+                                    child: Text(
+                                      context.strings.facesTimelineUnavailable,
+                                    ),
+                                  ),
+                                  _ => const Center(
+                                    key: ValueKey("memory-lane-loading"),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                },
                               ),
                             ),
-                            _ => const Center(
-                              key: ValueKey("memory-lane-loading"),
-                              child: CircularProgressIndicator(),
-                            ),
-                          },
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                // TODO: Remove these temporary navigation buttons once swiping is implemented.
-                bottomNavigationBar: SafeArea(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        tooltip: context.strings.previous,
-                        icon: const Icon(Icons.chevron_left),
-                        onPressed:
-                            snapshot.connectionState == ConnectionState.done &&
-                                _entries.isNotEmpty &&
-                                i > 0
-                            ? () => _selectEntry(i - 1)
-                            : null,
+                    const Expanded(
+                      flex: 1,
+                      child: Row(
+                        mainAxisAlignment: .center,
+                        children: [
+                          IconButtonComponent(
+                            variant:
+                                IconButtonComponentVariant.circularTranslucent,
+                            icon: HugeIcon(icon: HugeIcons.strokeRoundedPlay),
+                            size: 48,
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        tooltip: context.strings.next,
-                        icon: const Icon(Icons.chevron_right),
-                        onPressed:
-                            snapshot.connectionState == ConnectionState.done &&
-                                _entries.isNotEmpty &&
-                                i < _entries.length - 1
-                            ? () => _selectEntry(i + 1)
-                            : null,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -424,10 +417,8 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
       title = l10n.memoryLaneCardTitle(name: name);
     }
     final dialog = createProgressDialog(context, l10n.creatingLink);
-    setState(() => _playbackTimer?.cancel());
 
     try {
-      await dialog.show();
       final shareLinkData = await MemoryShareService.instance
           .getOrCreateMemoryLaneLink(
             entries: timeline.entries,
@@ -436,7 +427,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
             personName: person.data.name,
             birthDate: person.data.birthDate,
           );
-      await dialog.hide();
       if (!mounted) return;
       await shareText(
         formatMemoryShareText(title, shareLinkData.$1),
