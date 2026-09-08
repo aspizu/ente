@@ -16,6 +16,7 @@ enum IconButtonComponentVariant {
   secondary,
   green,
   circular,
+  circularTranslucent,
 }
 
 // Figma: https://www.figma.com/design/BuBNPPytxlVnqfmCUW0mgz/Ente-Visual-Design?node-id=2207-42075&m=dev
@@ -88,9 +89,13 @@ class _IconButtonComponentState extends State<IconButtonComponent>
   Widget build(BuildContext context) {
     final enabled = _canHandleGestures;
     final colors = _colors(context);
-    final radius = widget.variant == IconButtonComponentVariant.circular
-        ? BorderRadius.circular(35)
-        : BorderRadius.circular(Radii.md);
+    final radius = switch (widget.variant) {
+      IconButtonComponentVariant.circular => BorderRadius.circular(35),
+      IconButtonComponentVariant.circularTranslucent => BorderRadius.circular(
+        widget.size / 2,
+      ),
+      _ => BorderRadius.circular(Radii.md),
+    };
 
     Widget button = SizedBox(
       width: widget.size,
@@ -340,6 +345,8 @@ class _IconButtonComponentState extends State<IconButtonComponent>
     final transparent = colors.specialScrim.withAlpha(0);
 
     return switch (widget.variant) {
+      IconButtonComponentVariant.circularTranslucent =>
+        colors.specialWhite.withValues(alpha: 0.24),
       IconButtonComponentVariant.unfilled ||
       IconButtonComponentVariant.secondary => transparent,
       IconButtonComponentVariant.primary => colors.fillLight,
@@ -354,6 +361,8 @@ class _IconButtonComponentState extends State<IconButtonComponent>
     final transparent = colors.specialScrim.withAlpha(0);
 
     return switch (widget.variant) {
+      IconButtonComponentVariant.circularTranslucent =>
+        colors.specialWhite.withValues(alpha: 0.30),
       IconButtonComponentVariant.unfilled ||
       IconButtonComponentVariant.secondary => transparent,
       IconButtonComponentVariant.primary => colors.fillDark,
@@ -368,6 +377,8 @@ class _IconButtonComponentState extends State<IconButtonComponent>
     final transparent = colors.specialScrim.withAlpha(0);
 
     return switch (widget.variant) {
+      IconButtonComponentVariant.circularTranslucent =>
+        colors.specialWhite.withValues(alpha: 0.36),
       IconButtonComponentVariant.unfilled ||
       IconButtonComponentVariant.secondary => transparent,
       IconButtonComponentVariant.primary => colors.fillDarker,
@@ -382,6 +393,8 @@ class _IconButtonComponentState extends State<IconButtonComponent>
     final transparent = colors.specialScrim.withAlpha(0);
 
     return switch (widget.variant) {
+      IconButtonComponentVariant.circularTranslucent =>
+        colors.specialWhite.withValues(alpha: 0.16),
       IconButtonComponentVariant.unfilled ||
       IconButtonComponentVariant.secondary => transparent,
       IconButtonComponentVariant.primary ||
@@ -396,6 +409,8 @@ class _IconButtonComponentState extends State<IconButtonComponent>
     final transparent = colors.specialScrim.withAlpha(0);
 
     return switch (widget.variant) {
+      IconButtonComponentVariant.circularTranslucent =>
+        colors.specialWhite.withValues(alpha: 0.24),
       IconButtonComponentVariant.unfilled ||
       IconButtonComponentVariant.secondary => transparent,
       IconButtonComponentVariant.primary ||
@@ -411,6 +426,9 @@ class _IconButtonComponentState extends State<IconButtonComponent>
     bool isDisabled = false,
   }) {
     final colors = context.componentColors;
+    if (widget.variant == IconButtonComponentVariant.circularTranslucent) {
+      return colors.specialWhite;
+    }
     if (isDisabled) {
       return colors.textLighter;
     }
