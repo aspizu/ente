@@ -68,6 +68,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   final _logger = Logger("MemoryLanePageV2");
   late final Future<void> _memoryLaneLoaded;
   Future<Uint8List?>? _currentEntryFuture;
+  Key _currentEntryKey = UniqueKey();
   MemoryLanePersonTimeline? _timeline;
   final List<Future<Uint8List?>> _entries = [];
   final List<EnteFile> _files = [];
@@ -151,6 +152,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
 
   void _selectEntry(int index) {
     setState(() {
+      if (i != index) _currentEntryKey = UniqueKey();
       i = index;
       _currentEntryFuture = _entries[index];
     });
@@ -180,7 +182,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                     switchInCurve: Curves.easeOutExpo,
                     switchOutCurve: Curves.easeInExpo,
                     child: FutureBuilder<Uint8List?>(
-                      key: ObjectKey(_currentEntryFuture),
+                      key: _currentEntryKey,
                       future: _currentEntryFuture,
                       builder: (context, entrySnapshot) {
                         final crop = entrySnapshot.data;
@@ -296,13 +298,38 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
                         child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 750),
-                          switchInCurve: Curves.easeOutExpo,
-                          switchOutCurve: Curves.easeInExpo,
+                          duration: const Duration(milliseconds: 1000),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          transitionBuilder: (child, animation) {
+                            return AnimatedBuilder(
+                              animation: animation,
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: ScaleTransition(
+                                  scale: Tween<double>(
+                                    begin: 1,
+                                    end: 1.1,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
+                              ),
+                              builder: (context, child) {
+                                final blur = 12 * (1 - animation.value);
+                                return ImageFiltered(
+                                  imageFilter: ImageFilter.blur(
+                                    sigmaX: blur,
+                                    sigmaY: blur,
+                                  ),
+                                  child: child,
+                                );
+                              },
+                            );
+                          },
                           child: switch (snapshot.connectionState) {
                             ConnectionState.done when file != null =>
                               FutureBuilder<Uint8List?>(
-                                key: ObjectKey(_currentEntryFuture),
+                                key: _currentEntryKey,
                                 future: _currentEntryFuture,
                                 builder: (context, entrySnapshot) {
                                   final crop = entrySnapshot.data;
