@@ -2517,7 +2517,7 @@
   },
   "memoryLaneCardTitle": "{name}’s memory lane",
   "@memoryLaneCardTitle": {
-    "description": "Title for the Memory Lane card on the home screen",
+    "description": "Title for a person's Memory Lane, used on the home screen card, viewer page, and shared link",
     "placeholders": {
       "name": {
         "type": "String",
