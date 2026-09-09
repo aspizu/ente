@@ -73,6 +73,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
 
   final _logger = Logger("MemoryLanePageV2");
   Timer? _playbackTimer;
+  Object? _playbackToken;
   bool _wasPlayingBeforeSeek = false;
   late final Future<void> _memoryLaneLoaded;
   Key _currentEntryKey = UniqueKey();
@@ -125,7 +126,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
           previousEntry = entryFuture;
         }
       }
-      if (_entries.length > 1) _play(0);
+      if (_entries.length > 1) unawaited(_play(0));
     } catch (error) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       final navigator = Navigator.of(context);
@@ -134,26 +135,24 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
     }
   }
 
-  void _play(int index) {
+  Future<void> _play(int index) async {
     if (_entries.isEmpty) return;
+    final token = Object();
     setState(() {
       _playbackTimer?.cancel();
       _selectEntry(index);
-      if (i == _entries.length - 1) return;
-      _playbackTimer = Timer.periodic(_playbackInterval, (timer) {
-        setState(() {
-          _selectEntry(i + 1);
-          if (i == _entries.length - 1) {
-            timer.cancel();
-          }
-        });
-      });
+      _playbackToken = index < _entries.length - 1 ? token : null;
     });
+    if (_playbackToken == null) return;
+    await _entries[index];
+    if (!mounted || _playbackToken != token) return;
+    _playbackTimer = Timer(_playbackInterval, () => _play(index + 1));
   }
 
   void _pause() {
     setState(() {
       _playbackTimer?.cancel();
+      _playbackToken = null;
     });
   }
 
@@ -169,12 +168,13 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
     );
     setState(() {
       _playbackTimer?.cancel();
+      _playbackToken = null;
       _selectEntry(index);
     });
   }
 
   void _onPlayPauseTap() {
-    if (_playbackTimer?.isActive ?? false) {
+    if (_playbackToken != null) {
       _pause();
     } else if (i == _entries.length - 1) {
       _play(0);
@@ -597,7 +597,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                                   IconButtonComponent(
                                     variant: IconButtonComponentVariant
                                         .circularTranslucent,
-                                    tooltip: (_playbackTimer?.isActive ?? false)
+                                    tooltip: _playbackToken != null
                                         ? context
                                               .strings
                                               .facesTimelinePlaybackPause
@@ -606,7 +606,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                                               .facesTimelinePlaybackPlay,
                                     onTap: _onPlayPauseTap,
                                     icon: HugeIcon(
-                                      icon: (_playbackTimer?.isActive ?? false)
+                                      icon: _playbackToken != null
                                           ? HugeIcons.strokeRoundedPause
                                           : HugeIcons.strokeRoundedPlay,
                                     ),
@@ -621,8 +621,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                                             behavior: HitTestBehavior.opaque,
                                             onHorizontalDragDown: (_) {
                                               _wasPlayingBeforeSeek =
-                                                  _playbackTimer?.isActive ??
-                                                  false;
+                                                  _playbackToken != null;
                                             },
                                             onTapDown: (details) =>
                                                 _seekFromPosition(
@@ -730,7 +729,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
       );
     }
     final dialog = createProgressDialog(context, l10n.creatingLink);
-    final wasPlaying = _playbackTimer?.isActive ?? false;
+    final wasPlaying = _playbackToken != null;
     _pause();
 
     try {
@@ -761,7 +760,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   }
 
   Future<void> _onDateTap(EnteFile file) async {
-    final wasPlaying = _playbackTimer?.isActive ?? false;
+    final wasPlaying = _playbackToken != null;
     _pause();
     try {
       await routeToPage(context, JumpToDateGallery(fileToJumpTo: file));
