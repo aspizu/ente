@@ -1517,6 +1517,22 @@
       }
     }
   },
+  "memoryLaneAgeCaption": "{name} was {count, plural, one{{age} year old} other{{age} years old}}",
+  "@memoryLaneAgeCaption": {
+    "description": "Memory Lane age caption. The age placeholder is rendered as a separate, larger text widget; count selects the plural form.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "age": {
+        "type": "String",
+        "description": "Placeholder for the separately styled age number; retain this placeholder in every plural form."
+      }
+    }
+  },
   "facesTimelinePlaybackPause": "Pause",
   "@facesTimelinePlaybackPause": {
     "description": "Tooltip or semantics label for the pause button"
