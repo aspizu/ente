@@ -72,7 +72,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   Timer? _playbackTimer;
   bool _wasPlayingBeforeSeek = false;
   late final Future<void> _memoryLaneLoaded;
-  Future<Uint8List?>? _currentEntryFuture;
   Key _currentEntryKey = UniqueKey();
   MemoryLanePersonTimeline? _timeline;
   final List<Future<Uint8List?>> _entries = [];
@@ -121,10 +120,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
           previousEntry = entryFuture;
         }
       }
-      if (_entries.isNotEmpty) {
-        _currentEntryFuture = _entries.first;
-        if (_entries.length > 1) _play(0);
-      }
+      if (_entries.length > 1) _play(0);
     } catch (error) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       final navigator = Navigator.of(context);
@@ -140,14 +136,8 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
       _selectEntry(index);
       if (i == _entries.length - 1) return;
       _playbackTimer = Timer.periodic(_playbackInterval, (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
         setState(() {
-          if (i < _entries.length - 1) {
-            _selectEntry(i + 1);
-          }
+          _selectEntry(i + 1);
           if (i == _entries.length - 1) {
             timer.cancel();
           }
@@ -167,7 +157,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   }
 
   void _seekFromPosition(double x, double width) {
-    if (width <= 0 || _entries.isEmpty) return;
+    if (width <= 0) return;
     final index = (x / width * _entries.length).floor().clamp(
       0,
       _entries.length - 1,
@@ -206,12 +196,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
         (face) => face.faceID == entry.faceId,
       );
       if (face == null) return null;
-      final crops = await getCachedFaceCrops(
-        file,
-        [face],
-        useFullFile: true,
-        useTempCache: false,
-      );
+      final crops = await getCachedFaceCrops(file, [face], useTempCache: false);
       final bytes = crops?[entry.faceId];
       if (bytes != null && bytes.isNotEmpty) {
         return bytes;
@@ -226,7 +211,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   void _selectEntry(int index) {
     if (i != index) _currentEntryKey = UniqueKey();
     i = index;
-    _currentEntryFuture = _entries[index];
   }
 
   @override
@@ -254,7 +238,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                     switchOutCurve: Curves.easeInExpo,
                     child: FutureBuilder<Uint8List?>(
                       key: _currentEntryKey,
-                      future: _currentEntryFuture,
+                      future: _entries.isEmpty ? null : _entries[i],
                       builder: (context, entrySnapshot) {
                         final crop = entrySnapshot.data;
                         if (crop == null) return const SizedBox.expand();
@@ -322,7 +306,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                       dimension: 48,
                       child: IconButton(
                         tooltip: context.strings.close,
-                        padding: const EdgeInsets.all(8),
                         style: IconButton.styleFrom(
                           minimumSize: const Size.square(48),
                           maximumSize: const Size.square(48),
@@ -332,7 +315,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                         icon: const HugeIcon(
                           icon: HugeIcons.strokeRoundedCancel01,
                           color: Colors.white,
-                          size: 24,
                         ),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
@@ -345,7 +327,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                         dimension: 48,
                         child: IconButton(
                           tooltip: context.strings.shareLink,
-                          padding: const EdgeInsets.all(8),
                           style: IconButton.styleFrom(
                             minimumSize: const Size.square(48),
                             maximumSize: const Size.square(48),
@@ -354,7 +335,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                           ),
                           icon: const HugeIcon(
                             icon: HugeIcons.strokeRoundedShare08,
-                            size: 24,
                           ),
                           onPressed: _onShareTap,
                         ),
@@ -405,7 +385,9 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                                   ConnectionState.done when file != null =>
                                     FutureBuilder<Uint8List?>(
                                       key: _currentEntryKey,
-                                      future: _currentEntryFuture,
+                                      future: _entries.isEmpty
+                                          ? null
+                                          : _entries[i],
                                       builder: (context, entrySnapshot) {
                                         final crop = entrySnapshot.data;
                                         if (crop == null) {
@@ -449,7 +431,6 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                       ),
                     ),
                     Expanded(
-                      flex: 1,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 48),
                         child: Row(
