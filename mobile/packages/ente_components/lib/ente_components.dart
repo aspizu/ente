@@ -1,4 +1,5 @@
 export 'components/android_text_input_autofocus.dart';
+export 'components/animated_digit_component.dart';
 export 'components/app_bar_component.dart';
 export 'components/avatar_component.dart';
 export 'components/banner_component.dart';
