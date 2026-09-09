@@ -1,4 +1,5 @@
 import "dart:async";
+import "dart:math" as math;
 import "dart:typed_data";
 import "dart:ui";
 
@@ -77,6 +78,8 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
   Key _currentEntryKey = UniqueKey();
   MemoryLanePersonTimeline? _timeline;
   final List<Future<Uint8List?>> _entries = [];
+  final Map<(Future<Uint8List?>, Size), Future<(Uint8List, int)?>>
+  _decodedEntries = {};
   final List<EnteFile> _files = [];
   int i = 0;
 
@@ -210,6 +213,35 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
     }
   }
 
+  Future<(Uint8List, int)?> _fetchEntry(
+    Future<Uint8List?> entry,
+    Size targetSize,
+  ) {
+    return _decodedEntries.putIfAbsent((entry, targetSize), () async {
+      final bytes = await entry;
+      if (bytes == null || !mounted) return null;
+      final buffer = await ImmutableBuffer.fromUint8List(bytes);
+      try {
+        final descriptor = await ImageDescriptor.encoded(buffer);
+        try {
+          final scale = math.max(
+            targetSize.width / descriptor.width,
+            targetSize.height / descriptor.height,
+          );
+          final decodeWidth = (descriptor.width * scale).ceil().clamp(
+            1,
+            descriptor.width,
+          );
+          return (bytes, decodeWidth);
+        } finally {
+          descriptor.dispose();
+        }
+      } finally {
+        buffer.dispose();
+      }
+    });
+  }
+
   void _selectEntry(int index) {
     if (i != index) _currentEntryKey = UniqueKey();
     i = index;
@@ -226,6 +258,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
           title = context.strings.memoryLaneCardTitle(name: name);
         }
         final file = _files.isEmpty ? null : _files[i];
+        final entry = _entries.isEmpty ? null : _entries[i];
         final creationTime = file?.creationTime;
         final birthDate = DateTime.tryParse(
           widget.person?.data.birthDate ?? "",
@@ -271,25 +304,35 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                     duration: const Duration(milliseconds: 750),
                     switchInCurve: Curves.easeOutExpo,
                     switchOutCurve: Curves.easeInExpo,
-                    child: FutureBuilder<Uint8List?>(
+                    child: LayoutBuilder(
                       key: _currentEntryKey,
-                      future: _entries.isEmpty ? null : _entries[i],
-                      builder: (context, entrySnapshot) {
-                        final crop = entrySnapshot.data;
-                        if (crop == null) return const SizedBox.expand();
-                        return ImageFiltered(
-                          imageFilter: ImageFilter.blur(
-                            sigmaX: 100,
-                            sigmaY: 100,
+                      builder: (context, constraints) =>
+                          FutureBuilder<(Uint8List, int)?>(
+                            future: entry == null
+                                ? null
+                                : _fetchEntry(
+                                    entry,
+                                    constraints.biggest *
+                                        MediaQuery.devicePixelRatioOf(context),
+                                  ),
+                            builder: (context, entrySnapshot) {
+                              final crop = entrySnapshot.data;
+                              if (crop == null) return const SizedBox.expand();
+                              return ImageFiltered(
+                                imageFilter: ImageFilter.blur(
+                                  sigmaX: 100,
+                                  sigmaY: 100,
+                                ),
+                                child: Image.memory(
+                                  crop.$1,
+                                  cacheWidth: crop.$2,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                ),
+                              );
+                            },
                           ),
-                          child: Image.memory(
-                            crop,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                          ),
-                        );
-                      },
                     ),
                   ),
                 ),
@@ -420,35 +463,48 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                                 },
                                 child: switch (snapshot.connectionState) {
                                   ConnectionState.done when file != null =>
-                                    FutureBuilder<Uint8List?>(
+                                    LayoutBuilder(
                                       key: _currentEntryKey,
-                                      future: _entries.isEmpty
-                                          ? null
-                                          : _entries[i],
-                                      builder: (context, entrySnapshot) {
-                                        final crop = entrySnapshot.data;
-                                        if (crop == null) {
-                                          if (entrySnapshot.connectionState ==
-                                              ConnectionState.done) {
-                                            return Center(
-                                              child: Text(
-                                                context
-                                                    .strings
-                                                    .facesTimelineUnavailable,
-                                              ),
-                                            );
-                                          }
-                                          return const Center(
-                                            child: CircularProgressIndicator(),
-                                          );
-                                        }
-                                        return Image.memory(
-                                          crop,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                        );
-                                      },
+                                      builder: (context, constraints) =>
+                                          FutureBuilder<(Uint8List, int)?>(
+                                            future: entry == null
+                                                ? null
+                                                : _fetchEntry(
+                                                    entry,
+                                                    constraints.biggest *
+                                                        MediaQuery.devicePixelRatioOf(
+                                                          context,
+                                                        ) *
+                                                        1.1,
+                                                  ),
+                                            builder: (context, entrySnapshot) {
+                                              final crop = entrySnapshot.data;
+                                              if (crop == null) {
+                                                if (entrySnapshot
+                                                        .connectionState ==
+                                                    ConnectionState.done) {
+                                                  return Center(
+                                                    child: Text(
+                                                      context
+                                                          .strings
+                                                          .facesTimelineUnavailable,
+                                                    ),
+                                                  );
+                                                }
+                                                return const Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                );
+                                              }
+                                              return Image.memory(
+                                                crop.$1,
+                                                cacheWidth: crop.$2,
+                                                fit: BoxFit.cover,
+                                                width: double.infinity,
+                                                height: double.infinity,
+                                              );
+                                            },
+                                          ),
                                     ),
                                   ConnectionState.done => Center(
                                     key: const ValueKey("memory-lane-empty"),
