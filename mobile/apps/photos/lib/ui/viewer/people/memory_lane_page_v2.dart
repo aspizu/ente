@@ -3,11 +3,12 @@ import "dart:typed_data";
 import "dart:ui";
 
 import "package:collection/collection.dart";
+import "package:ente_components/ente_components.dart";
 import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
 import "package:hugeicons/hugeicons.dart";
-import "package:intl/intl.dart" show DateFormat;
+import "package:intl/intl.dart" show DateFormat, NumberFormat;
 import "package:logging/logging.dart";
 import "package:photos/db/ml/db.dart";
 import "package:photos/ente_theme_data.dart";
@@ -18,6 +19,7 @@ import "package:photos/models/ml/face/person.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/memory_lane/memory_lane_service.dart";
 import "package:photos/services/memory_share_service.dart";
+import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/viewer/gallery/jump_to_date_gallery.dart";
 import "package:photos/ui/viewer/people/memory_lane_page.dart";
 import "package:photos/utils/dialog_util.dart";
@@ -225,6 +227,39 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
         }
         final file = _files.isEmpty ? null : _files[i];
         final creationTime = file?.creationTime;
+        final birthDate = DateTime.tryParse(
+          widget.person?.data.birthDate ?? "",
+        );
+        final creationDate = creationTime == null
+            ? null
+            : DateTime.fromMicrosecondsSinceEpoch(creationTime);
+        int? age;
+        if (birthDate != null &&
+            creationDate != null &&
+            !creationDate.isBefore(birthDate)) {
+          age = creationDate.year - birthDate.year;
+          final lastDay = DateTime(
+            creationDate.year,
+            birthDate.month + 1,
+            0,
+          ).day;
+          final anniversary = DateTime(
+            creationDate.year,
+            birthDate.month,
+            birthDate.day.clamp(1, lastDay),
+          );
+          if (creationDate.isBefore(anniversary)) age--;
+        }
+        const agePlaceholder = "\uFFFC";
+        final ageCaptionParts = age != null && name != null && name.isNotEmpty
+            ? context.strings
+                  .memoryLaneAgeCaption(
+                    name: name,
+                    count: age,
+                    age: agePlaceholder,
+                  )
+                  .split(agePlaceholder)
+            : const <String>[];
         return Theme(
           data: darkThemeData,
           child: Stack(
@@ -431,98 +466,172 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                       ),
                     ),
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 48),
-                        child: Row(
-                          mainAxisAlignment: .center,
-                          children: [
-                            IconButtonComponent(
-                              variant: IconButtonComponentVariant
-                                  .circularTranslucent,
-                              tooltip: (_playbackTimer?.isActive ?? false)
-                                  ? context.strings.facesTimelinePlaybackPause
-                                  : context.strings.facesTimelinePlaybackPlay,
-                              onTap: _onPlayPauseTap,
-                              icon: HugeIcon(
-                                icon: (_playbackTimer?.isActive ?? false)
-                                    ? HugeIcons.strokeRoundedPause
-                                    : HugeIcons.strokeRoundedPlay,
-                              ),
-                              size: 48,
-                            ),
-                            if (_entries.isNotEmpty) ...[
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    return GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onHorizontalDragDown: (_) {
-                                        _wasPlayingBeforeSeek =
-                                            _playbackTimer?.isActive ?? false;
-                                      },
-                                      onTapDown: (details) => _seekFromPosition(
-                                        details.localPosition.dx,
-                                        constraints.maxWidth,
-                                      ),
-                                      onTapUp: (_) => _onSeekEnd(),
-                                      onHorizontalDragStart: (details) =>
-                                          _seekFromPosition(
-                                            details.localPosition.dx,
-                                            constraints.maxWidth,
-                                          ),
-                                      onHorizontalDragUpdate: (details) =>
-                                          _seekFromPosition(
-                                            details.localPosition.dx,
-                                            constraints.maxWidth,
-                                          ),
-                                      onHorizontalDragEnd: (_) =>
-                                          _onSeekEnd(),
-                                      child: Row(
-                                        children: List.generate(
-                                          _entries.length,
-                                          (index) {
-                                            final distance = (index - i).abs();
-                                            final double size =
-                                                switch (distance) {
-                                                  0 => 15,
-                                                  1 => 10,
-                                                  2 => 7.5,
-                                                  _ => 5,
-                                                };
-                                            return Expanded(
-                                              child: SizedBox(
-                                                height: 40,
-                                                child: Center(
-                                                  child: AnimatedContainer(
-                                                    duration: const Duration(
-                                                      milliseconds: 200,
-                                                    ),
-                                                    width: size,
-                                                    height: size,
-                                                    decoration: BoxDecoration(
-                                                      shape: BoxShape.circle,
-                                                      color: Colors.white
-                                                          .withValues(
-                                                            alpha: distance == 0
-                                                                ? 1
-                                                                : 0.5,
-                                                          ),
-                                                    ),
-                                                  ),
+                      child: Column(
+                        children: [
+                          if (age != null &&
+                              name != null &&
+                              name.isNotEmpty) ...[
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 64,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    spacing: 8,
+                                    children: [
+                                      for (
+                                        var index = 0;
+                                        index < ageCaptionParts.length;
+                                        index++
+                                      ) ...[
+                                        if (index > 0)
+                                          AnimatedDigitComponent(
+                                            value: age,
+                                            formatter:
+                                                NumberFormat.decimalPattern(
+                                                  context.strings.localeName,
+                                                ).format,
+                                            style: darkTheme.textTheme.h2
+                                                .copyWith(
+                                                  fontWeight: .w600,
+                                                  color: darkTheme
+                                                      .colorScheme
+                                                      .textBase,
                                                 ),
-                                              ),
-                                            );
-                                          },
+                                          ),
+                                        Flexible(
+                                          child: Text(
+                                            ageCaptionParts[index],
+                                            style:
+                                                darkTheme.textTheme.bodyMuted,
+                                            textAlign: TextAlign.center,
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  },
+                                      ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ],
+                            ),
+                            const SizedBox(height: 16),
                           ],
-                        ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 96,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: .center,
+                                children: [
+                                  IconButtonComponent(
+                                    variant: IconButtonComponentVariant
+                                        .circularTranslucent,
+                                    tooltip: (_playbackTimer?.isActive ?? false)
+                                        ? context
+                                              .strings
+                                              .facesTimelinePlaybackPause
+                                        : context
+                                              .strings
+                                              .facesTimelinePlaybackPlay,
+                                    onTap: _onPlayPauseTap,
+                                    icon: HugeIcon(
+                                      icon: (_playbackTimer?.isActive ?? false)
+                                          ? HugeIcons.strokeRoundedPause
+                                          : HugeIcons.strokeRoundedPlay,
+                                    ),
+                                    size: 48,
+                                  ),
+                                  if (_entries.isNotEmpty) ...[
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          return GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onHorizontalDragDown: (_) {
+                                              _wasPlayingBeforeSeek =
+                                                  _playbackTimer?.isActive ??
+                                                  false;
+                                            },
+                                            onTapDown: (details) =>
+                                                _seekFromPosition(
+                                                  details.localPosition.dx,
+                                                  constraints.maxWidth,
+                                                ),
+                                            onTapUp: (_) => _onSeekEnd(),
+                                            onHorizontalDragStart: (details) =>
+                                                _seekFromPosition(
+                                                  details.localPosition.dx,
+                                                  constraints.maxWidth,
+                                                ),
+                                            onHorizontalDragUpdate: (details) =>
+                                                _seekFromPosition(
+                                                  details.localPosition.dx,
+                                                  constraints.maxWidth,
+                                                ),
+                                            onHorizontalDragEnd: (_) =>
+                                                _onSeekEnd(),
+                                            child: Row(
+                                              children: List.generate(
+                                                _entries.length,
+                                                (index) {
+                                                  final distance = (index - i)
+                                                      .abs();
+                                                  final double size =
+                                                      switch (distance) {
+                                                        0 => 15,
+                                                        1 => 10,
+                                                        2 => 7.5,
+                                                        _ => 5,
+                                                      };
+                                                  return Expanded(
+                                                    child: SizedBox(
+                                                      height: 40,
+                                                      child: Center(
+                                                        child: AnimatedContainer(
+                                                          duration:
+                                                              const Duration(
+                                                                milliseconds:
+                                                                    200,
+                                                              ),
+                                                          width: size,
+                                                          height: size,
+                                                          decoration: BoxDecoration(
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            color: Colors.white
+                                                                .withValues(
+                                                                  alpha:
+                                                                      distance ==
+                                                                          0
+                                                                      ? 1
+                                                                      : 0.5,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 44),
+                        ],
                       ),
                     ),
                   ],
@@ -555,6 +664,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
     _pause();
 
     try {
+      await dialog.show();
       final shareLinkData = await MemoryShareService.instance
           .getOrCreateMemoryLaneLink(
             entries: timeline.entries,
@@ -563,6 +673,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
             personName: person.data.name,
             birthDate: person.data.birthDate,
           );
+      await dialog.hide();
       if (!mounted) return;
       await shareText(
         formatMemoryShareText(title, shareLinkData.$1),
