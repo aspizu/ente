@@ -255,7 +255,10 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
         final name = widget.person?.data.name.trim();
         var title = context.strings.facesTimelineAppBarTitle;
         if (name != null && name.isNotEmpty) {
-          title = context.strings.memoryLaneCardTitle(name: name);
+          title = context.strings.memoryLaneCardTitle(
+            name: name,
+            nameEndsWithS: name.toLowerCase().endsWith("s").toString(),
+          );
         }
         final file = _files.isEmpty ? null : _files[i];
         final entry = _entries.isEmpty ? null : _entries[i];
@@ -346,7 +349,11 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                     children: [
                       Hero(
                         tag: 'memory-lane-title-${widget.personId}',
-                        child: Text(title),
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       if (file != null && creationTime != null)
                         GestureDetector(
@@ -717,7 +724,10 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
     final name = person.data.name.trim();
     var title = l10n.facesTimelineAppBarTitle;
     if (name.isNotEmpty) {
-      title = l10n.memoryLaneCardTitle(name: name);
+      title = l10n.memoryLaneCardTitle(
+        name: name,
+        nameEndsWithS: name.toLowerCase().endsWith("s").toString(),
+      );
     }
     final dialog = createProgressDialog(context, l10n.creatingLink);
     final wasPlaying = _playbackTimer?.isActive ?? false;

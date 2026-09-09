@@ -31,7 +31,10 @@ class MemoryLaneCardWidget extends StatelessWidget {
     final name = personName.trim();
     final title = name.isEmpty
         ? context.strings.facesTimelineAppBarTitle
-        : context.strings.memoryLaneCardTitle(name: name);
+        : context.strings.memoryLaneCardTitle(
+            name: name,
+            nameEndsWithS: name.toLowerCase().endsWith("s").toString(),
+          );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kMemoryCardStripGap / 2),
@@ -89,7 +92,7 @@ class MemoryLaneCardWidget extends StatelessWidget {
                   tag: 'memory-lane-title-$id',
                   child: Text(
                     title,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyles.body.copyWith(
                       height: 16 / 14,

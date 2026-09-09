@@ -2531,13 +2531,17 @@
       }
     }
   },
-  "memoryLaneCardTitle": "{name}’s memory lane",
+  "memoryLaneCardTitle": "{nameEndsWithS, select, true{{name}’ memory lane} other{{name}’s memory lane}}",
   "@memoryLaneCardTitle": {
     "description": "Title for a person's Memory Lane, used on the home screen card, viewer page, and shared link",
     "placeholders": {
       "name": {
         "type": "String",
         "description": "Person's name"
+      },
+      "nameEndsWithS": {
+        "type": "String",
+        "description": "true if the trimmed name ends in s or S; false otherwise"
       }
     }
   },
