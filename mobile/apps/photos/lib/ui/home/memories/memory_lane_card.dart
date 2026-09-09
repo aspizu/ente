@@ -86,6 +86,7 @@ class MemoryLaneCardWidget extends StatelessWidget {
                 child: Text(
                   title,
                   maxLines: 2,
+                  softWrap: true,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyles.body.copyWith(
                     height: 16 / 14,
