@@ -6,6 +6,3 @@
 CLAUDE.local.md
 
 node_modules/
-
-# FVM Version Cache
-.fvm/
